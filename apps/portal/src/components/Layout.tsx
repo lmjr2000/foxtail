@@ -17,6 +17,8 @@ function toggleTheme() {
   try { localStorage.setItem('foxtail_theme', dark ? 'dark' : 'light'); } catch { /* ignore */ }
 }
 
+const isPreview = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
 export default function Layout({ children }: { children: ReactNode }) {
   const { user, isCorporate, canManage, signOut } = useAuth();
   const [menu, setMenu] = useState(false);
@@ -34,6 +36,11 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col">
+      {isPreview && (
+        <div className="bg-amber-500 text-black text-center py-2 px-4 text-sm font-semibold">
+          ⚠️ PREVIEW — SAMPLE DATA ONLY — Not connected to live system
+        </div>
+      )}
       <header className="bg-brand border-b border-black/20">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-4">
           <Logo />

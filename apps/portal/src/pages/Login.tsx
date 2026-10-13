@@ -32,6 +32,8 @@ function GoogleButton({ clientId, onError }: { clientId: string; onError: (m: st
   return <div ref={ref} className="flex justify-center" />;
 }
 
+const isPreview = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
 export default function Login() {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
@@ -49,7 +51,13 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2">
+    <div className="min-h-screen flex flex-col">
+      {isPreview && (
+        <div className="bg-amber-500 text-black text-center py-2 px-4 text-sm font-semibold">
+          ⚠️ PREVIEW — SAMPLE DATA ONLY — Not connected to live system
+        </div>
+      )}
+      <div className="flex-1 grid lg:grid-cols-2">
       <div className="hidden lg:flex flex-col justify-between bg-brand p-12 text-white border-r-4 border-accent">
         <img src="/foxtail-wordmark-white.png" alt="Foxtail Coffee Co." className="h-9 w-auto self-start" />
         <div>
@@ -77,6 +85,7 @@ export default function Login() {
           {googleId && <><div className="text-center text-xs text-ink-4">or</div><GoogleButton clientId={googleId} onError={setError} /></>}
           <p className="text-xs text-ink-4">Forgot your password? Ask a Foxtail corporate admin to reset it.</p>
         </form>
+      </div>
       </div>
     </div>
   );
