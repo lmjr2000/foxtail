@@ -72,15 +72,37 @@ function DetailsTab({ store, canManage, onSaved }: { store: Store; canManage: bo
   const fr = useApi<{ franchisees: Franchisee[] }>('/foxtail/franchisees');
   const [f, setF] = useState({ name: store.name, storeNumber: store.storeNumber ?? '', address: store.address ?? '', city: store.city ?? '', state: store.state ?? '', postalCode: store.postalCode ?? '', timezone: store.timezone, franchiseeId: store.franchiseeId ?? '' });
   const [hours, setHours] = useState<OperatingHours>(store.openingHours);
-  const [archiving, setArchiving] = useState(false);
+  const [hiding, setHiding] = useState(false);
+  const [confirmRename, setConfirmRename] = useState(false);
   const { busy, run, note } = useSaver();
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF(x => ({ ...x, [k]: e.target.value }));
   const dis = !canManage;
+
+  const nameOrAddressChanged = f.name !== store.name || f.address !== (store.address ?? '') || f.city !== (store.city ?? '') || f.state !== (store.state ?? '');
+
+  const doSave = async () => {
+    await apiPatch(`/foxtail/stores/${store.id}`, { ...f, franchiseeId: f.franchiseeId || null, openingHours: hours });
+    onSaved();
+  };
+
+  const handleSave = () => {
+    if (nameOrAddressChanged) {
+      setConfirmRename(true);
+    } else {
+      run(doSave);
+    }
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <Card title="Store">
         <fieldset disabled={dis} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="sm:col-span-2"><Field label="Store name"><input className="input" value={f.name} onChange={set('name')} /></Field></div>
+          <div className="sm:col-span-2">
+            <Field label="Store name">
+              <input className="input" value={f.name} onChange={set('name')} />
+              {canManage && f.name !== store.name && <span className="text-xs text-warn mt-1 block">Changing the name will rename this site in Omni.</span>}
+            </Field>
+          </div>
           <Field label="Store number"><input className="input" value={f.storeNumber} onChange={set('storeNumber')} /></Field>
           <Field label="Franchisee" help="Franchise owners of this franchisee see this store; nobody else outside corporate does.">
             <select className="input" value={f.franchiseeId} onChange={set('franchiseeId')}>
@@ -88,7 +110,12 @@ function DetailsTab({ store, canManage, onSaved }: { store: Store; canManage: bo
               {fr.data?.franchisees.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
             </select>
           </Field>
-          <div className="sm:col-span-2"><Field label="Street address"><input className="input" value={f.address} onChange={set('address')} /></Field></div>
+          <div className="sm:col-span-2">
+            <Field label="Street address">
+              <input className="input" value={f.address} onChange={set('address')} />
+              {canManage && f.address !== (store.address ?? '') && <span className="text-xs text-warn mt-1 block">Changing the address will update this site in Omni.</span>}
+            </Field>
+          </div>
           <Field label="City"><input className="input" value={f.city} onChange={set('city')} /></Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="State"><input className="input" value={f.state} onChange={set('state')} /></Field>
@@ -126,14 +153,18 @@ function DetailsTab({ store, canManage, onSaved }: { store: Store; canManage: bo
       </Card>
       {canManage && (
         <div className="lg:col-span-2 flex flex-wrap items-center gap-3">
-          <button type="button" className="btn-primary" disabled={busy || !f.name.trim()} onClick={() => run(async () => { await apiPatch(`/foxtail/stores/${store.id}`, { ...f, franchiseeId: f.franchiseeId || null, openingHours: hours }); onSaved(); })}>{busy ? 'Saving…' : 'Save store'}</button>
+          <button type="button" className="btn-primary" disabled={busy || !f.name.trim()} onClick={handleSave}>{busy ? 'Saving…' : 'Save store'}</button>
           {note}
           <div className="flex-1" />
-          <button type="button" className="btn-ghost text-bad" onClick={() => setArchiving(true)}>Archive store…</button>
+          <button type="button" className="btn-ghost text-bad" onClick={() => setHiding(true)}>Hide store…</button>
         </div>
       )}
-      <Modal title="Archive store" open={archiving} onClose={() => setArchiving(false)} footer={<><button type="button" className="btn-ghost" onClick={() => setArchiving(false)}>Cancel</button><button type="button" className="btn-danger" onClick={async () => { await apiDelete(`/foxtail/stores/${store.id}`); nav('/stores'); }}>Archive</button></>}>
-        <p className="text-sm text-ink-2">{store.name} will disappear from every list, report and login, and counting will stop. Its past numbers are kept in the database.</p>
+      <Modal title="Hide store" open={hiding} onClose={() => setHiding(false)} footer={<><button type="button" className="btn-ghost" onClick={() => setHiding(false)}>Cancel</button><button type="button" className="btn-danger" onClick={async () => { await apiDelete(`/foxtail/stores/${store.id}`); nav('/stores'); }}>Hide</button></>}>
+        <p className="text-sm text-ink-2"><b>{store.name}</b> will be hidden from Foxtail lists, reports and logins, and counting will stop. The site remains in Omni and can be shown again later.</p>
+      </Modal>
+      <Modal title="Confirm site rename" open={confirmRename} onClose={() => setConfirmRename(false)} footer={<><button type="button" className="btn-ghost" onClick={() => setConfirmRename(false)}>Cancel</button><button type="button" className="btn-primary" onClick={() => { setConfirmRename(false); run(doSave); }}>Yes, rename in Omni</button></>}>
+        <p className="text-sm text-ink-2">Changing the name or address will <b>rename this site in the Omni system</b> — not just in Foxtail. This affects how the site appears in Eye of Omni and other Omni products.</p>
+        <p className="text-sm text-ink-3 mt-2">Are you sure you want to continue?</p>
       </Modal>
     </div>
   );

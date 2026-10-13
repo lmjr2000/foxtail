@@ -9,8 +9,6 @@ type AlertFilter = 'open' | 'acknowledged' | 'all';
 const SEVERITY_COLORS: Record<string, string> = {
   critical: 'bg-red-600 text-white',
   high: 'bg-orange-500 text-white',
-  medium: 'bg-yellow-500 text-black',
-  low: 'bg-blue-500 text-white',
   info: 'bg-gray-400 text-white',
 };
 
@@ -65,12 +63,12 @@ function AlertDetailModal({ alertId, onClose }: { alertId: string; onClose: () =
   const { data, loading, error, reload } = useApi<AlertDetail>(`/foxtail/alerts/${alertId}`);
   const { canManage } = useAuth();
   const [acking, setAcking] = useState(false);
-  const [notes, setNotes] = useState('');
+  const [snapshotError, setSnapshotError] = useState(false);
 
   const doAck = async () => {
     setAcking(true);
     try {
-      await apiFetch(`/foxtail/alerts/${alertId}/acknowledge`, { method: 'POST', body: JSON.stringify({ notes: notes || undefined }) });
+      await apiFetch(`/foxtail/alerts/${alertId}/acknowledge`, { method: 'POST', body: JSON.stringify({}) });
       reload();
     } catch { /* ignore */ }
     setAcking(false);
@@ -92,9 +90,14 @@ function AlertDetailModal({ alertId, onClose }: { alertId: string; onClose: () =
               <button type="button" className="text-ink-3 hover:text-ink text-xl" onClick={onClose}>×</button>
             </div>
 
-            {data.snapshotUrl && (
+            {data.snapshotUrl && !snapshotError && (
               <div className="mb-4 rounded overflow-hidden bg-black">
-                <img src={data.snapshotUrl} alt="Alert snapshot" className="w-full" />
+                <img
+                  src={data.snapshotUrl}
+                  alt="AI detection snapshot"
+                  className="w-full"
+                  onError={() => setSnapshotError(true)}
+                />
               </div>
             )}
 
@@ -107,22 +110,8 @@ function AlertDetailModal({ alertId, onClose }: { alertId: string; onClose: () =
               )}
             </div>
 
-            {data.notes && (
-              <div className="bg-surface-2 rounded p-3 text-sm mb-4">
-                <div className="text-xs text-ink-3 mb-1">Notes</div>
-                {data.notes}
-              </div>
-            )}
-
             {canManage && data.status === 'open' && (
               <div className="border-t border-line pt-4 mt-4">
-                <label className="block text-sm font-medium mb-1">Acknowledge with notes (optional)</label>
-                <textarea
-                  className="input w-full h-20 mb-2"
-                  placeholder="Notes..."
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                />
                 <button type="button" className="btn-primary" onClick={doAck} disabled={acking}>{acking ? 'Acknowledging...' : 'Acknowledge Alert'}</button>
               </div>
             )}
@@ -184,8 +173,8 @@ export default function Security() {
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
   const { data, loading, error, reload } = useApi<{ alerts: Alert[]; counts: AlertCounts }>(`/foxtail/alerts?status=${filter}`, 30000);
 
-  const counts = data?.counts || { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
-  const totalOpen = counts.critical + counts.high + counts.medium + counts.low + counts.info;
+  const counts = data?.counts || { critical: 0, high: 0, info: 0 };
+  const totalOpen = counts.critical + counts.high + counts.info;
 
   return (
     <div className="space-y-6">
@@ -205,11 +194,9 @@ export default function Security() {
         </div>
       </div>
 
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <AlertCountCard label="Critical" count={counts.critical} color="bg-red-50 dark:bg-red-900/20" />
         <AlertCountCard label="High" count={counts.high} color="bg-orange-50 dark:bg-orange-900/20" />
-        <AlertCountCard label="Medium" count={counts.medium} color="bg-yellow-50 dark:bg-yellow-900/20" />
-        <AlertCountCard label="Low" count={counts.low} color="bg-blue-50 dark:bg-blue-900/20" />
         <AlertCountCard label="Info" count={counts.info} color="bg-gray-50 dark:bg-gray-900/20" />
       </div>
 

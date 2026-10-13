@@ -170,16 +170,21 @@ paths:
                   minLength: 10
       responses:
         '200':
-          description: Password changed; returns new token
+          description: Password changed; returns new token to maintain the session
           content:
             application/json:
               schema:
                 type: object
+                required: [ok, token]
                 properties:
+                  ok:
+                    type: boolean
+                    description: Always true on success
                   token:
                     type: string
+                    description: New JWT token to replace the old one
         '400':
-          description: New password too weak
+          description: New password too weak (must be at least 10 characters)
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -223,10 +228,6 @@ paths:
                       critical:
                         type: integer
                       high:
-                        type: integer
-                      medium:
-                        type: integer
-                      low:
                         type: integer
                       info:
                         type: integer
@@ -272,9 +273,6 @@ paths:
           application/json:
             schema:
               type: object
-              properties:
-                notes:
-                  type: string
       responses:
         '200':
           description: Acknowledged
@@ -282,6 +280,31 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  /foxtail/alerts/{alertId}/snapshot.jpg:
+    get:
+      tags: [security]
+      summary: AI detection snapshot image (when available)
+      operationId: getAlertSnapshot
+      description: Returns the AI detection snapshot for alerts that have one. Not all alerts have snapshots.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: alertId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: JPEG snapshot image
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Alert not found or no snapshot available
 
   /foxtail/camera-health:
     get:
@@ -400,15 +423,16 @@ paths:
 
     delete:
       tags: [stores]
-      summary: Archive store (corporate admin)
-      operationId: archiveStore
+      summary: Hide store from Foxtail (corporate admin)
+      operationId: hideStore
+      description: Hides this store from Foxtail lists, reports and logins. The site remains in Omni and can be shown again later. Counting stops while hidden.
       security:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/siteId'
       responses:
         '200':
-          description: Archived
+          description: Store hidden
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
@@ -1216,50 +1240,8 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  # ============================================================================
-  # IMPORTS (corporate admin)
-  # ============================================================================
-  /foxtail/imports/ezcloud:
-    post:
-      tags: [stores]
-      summary: Import EZCloud channel export (corporate admin)
-      operationId: importEzcloud
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [csv]
-              properties:
-                csv:
-                  type: string
-                  description: EZCloud Channel Management export CSV
-                dryRun:
-                  type: boolean
-                  default: false
-      responses:
-        '200':
-          description: Import result
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  dryRun:
-                    type: boolean
-                  storesCreated:
-                    type: integer
-                  storesUpdated:
-                    type: integer
-                  camerasCreated:
-                    type: integer
-                  camerasUpdated:
-                    type: integer
-        '403':
-          $ref: '#/components/responses/Forbidden'
+  # Note: EZCloud import (/foxtail/imports/ezcloud) is not available via Omni.
+  # It returns 410 Gone. Stores and cameras are managed in Omni directly.
 
 components:
   securitySchemes:
@@ -1325,6 +1307,10 @@ components:
         role:
           type: string
           enum: [corporate_admin, corporate_viewer, franchise_owner]
+          description: Foxtail-specific role
+        omniRole:
+          type: string
+          description: Omni role (may differ from Foxtail role)
         franchiseeId:
           type: string
           nullable: true
@@ -1525,7 +1511,8 @@ components:
           type: string
         severity:
           type: string
-          enum: [critical, high, medium, low, info]
+          enum: [critical, high, info]
+          description: Only these three severity levels are used
         title:
           type: string
         createdAt:
@@ -1552,14 +1539,12 @@ components:
             snapshotUrl:
               type: string
               nullable: true
+              description: URL to /foxtail/alerts/{id}/snapshot.jpg (AI snapshots only, not all alerts have one)
             acknowledgedAt:
               type: string
               format: date-time
               nullable: true
             acknowledgedBy:
-              type: string
-              nullable: true
-            notes:
               type: string
               nullable: true
 

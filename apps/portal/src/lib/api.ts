@@ -95,7 +95,11 @@ export function useApi<T>(path: string | null, refreshMs = 0) {
 
 // ------------------------------------------------------------------------------------- types
 
-export interface SessionUser { id: string; email: string; name: string; role: Role; franchiseeId: string | null; mustChangePassword: boolean }
+export interface SessionUser {
+  id: string; email: string; name: string; role: Role; franchiseeId: string | null; mustChangePassword: boolean;
+  /** Omni role (if different from Foxtail role) */
+  omniRole?: string;
+}
 
 export interface Store {
   id: string; storeNumber: string | null; name: string; address: string | null; city: string | null; state: string | null; postalCode: string | null;
@@ -166,7 +170,7 @@ export interface Insights {
   notes: string[];
 }
 
-export type CountingStatus = 'not_set_up' | 'off' | 'no_data' | 'stale' | 'ok';
+export type CountingStatus = 'not_set_up' | 'off' | 'no_data' | 'stale' | 'ok' | 'demo';
 
 export interface OverviewStore {
   storeId: string; name: string; storeNumber: string | null; city: string | null; state: string | null; franchiseeName: string | null; timezone: string;
@@ -190,7 +194,8 @@ export interface AdminUser { id: string; email: string; name: string; role: Role
 
 // ------------------------------------------------------------------------------------- security / alerts
 
-export type AlertSeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';
+/** Omni only uses critical, high, info */
+export type AlertSeverity = 'critical' | 'high' | 'info';
 export type AlertStatus = 'open' | 'acknowledged';
 
 export interface Alert {
@@ -207,17 +212,15 @@ export interface Alert {
 
 export interface AlertDetail extends Alert {
   detail: string | null;
+  /** Snapshot from /foxtail/alerts/{id}/snapshot.jpg (AI snapshots only) */
   snapshotUrl: string | null;
   acknowledgedAt: string | null;
   acknowledgedBy: string | null;
-  notes: string | null;
 }
 
 export interface AlertCounts {
   critical: number;
   high: number;
-  medium: number;
-  low: number;
   info: number;
 }
 
