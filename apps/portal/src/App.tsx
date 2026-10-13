@@ -4,6 +4,7 @@ import Layout from './components/Layout';
 import { Loading } from './components/ui';
 import Login from './pages/Login';
 import Account from './pages/Account';
+import Security from './pages/Security';
 import Overview from './pages/Overview';
 import Stores from './pages/Stores';
 import StoreDetail from './pages/StoreDetail';
@@ -20,6 +21,7 @@ export default function App() {
   return (
     <Layout>
       <Routes>
+        <Route path="/security" element={<Security />} />
         <Route path="/" element={<Overview />} />
         <Route path="/stores" element={<Stores />} />
         <Route path="/stores/:storeId" element={<StoreDetail />} />

@@ -49,7 +49,7 @@ function cell(s: OverviewStore, k: SortKey): string {
 export default function Overview() {
   const { isCorporate } = useAuth();
   const { range, hours, qs, setRange, setHours } = useRange('today');
-  const { data, error } = useApi<OverviewData>(`/overview?${qs}`, range === 'today' ? 60_000 : 0);
+  const { data, error } = useApi<OverviewData>(`/foxtail/overview?${qs}`, range === 'today' ? 60_000 : 0);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'entered', dir: -1 });
   const [busy, setBusy] = useState<string | null>(null);
   const [dlError, setDlError] = useState<string | null>(null);
@@ -71,7 +71,7 @@ export default function Overview() {
 
   const dl = async (kind: 'pdf' | 'csv') => {
     setBusy(kind); setDlError(null);
-    try { await download(`/reports/all-stores.${kind}?${qs}`, `foxtail-stores.${kind}`); } catch (e) { setDlError(e instanceof Error ? e.message : 'Download failed'); } finally { setBusy(null); }
+    try { await download(`/foxtail/reports/all-stores.${kind}?${qs}`, `foxtail-stores.${kind}`); } catch (e) { setDlError(e instanceof Error ? e.message : 'Download failed'); } finally { setBusy(null); }
   };
 
   const t = data?.totals;

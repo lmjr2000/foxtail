@@ -15,7 +15,7 @@ function countingBadge(s: StoreListItem) {
 
 export default function Stores() {
   const { isCorporate, canManage } = useAuth();
-  const { data, error, reload } = useApi<{ stores: StoreListItem[] }>('/stores');
+  const { data, error, reload } = useApi<{ stores: StoreListItem[] }>('/foxtail/stores');
   const [q, setQ] = useState('');
   const [adding, setAdding] = useState(false);
   const list = useMemo(() => {
@@ -61,7 +61,7 @@ export default function Stores() {
 
 function AddStore({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const nav = useNavigate();
-  const fr = useApi<{ franchisees: Franchisee[] }>('/franchisees');
+  const fr = useApi<{ franchisees: Franchisee[] }>('/foxtail/franchisees');
   const [f, setF] = useState({ name: '', storeNumber: '', address: '', city: '', state: '', postalCode: '', timezone: DEFAULT_TIMEZONE, franchiseeId: '' });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -69,7 +69,7 @@ function AddStore({ onClose, onDone }: { onClose: () => void; onDone: () => void
   const save = async () => {
     setBusy(true); setErr(null);
     try {
-      const r = await apiPost<{ store: Store }>('/stores', { ...f, franchiseeId: f.franchiseeId || null, openingHours: DEFAULT_HOURS });
+      const r = await apiPost<{ store: Store }>('/foxtail/stores', { ...f, franchiseeId: f.franchiseeId || null, openingHours: DEFAULT_HOURS });
       onDone();
       nav(`/stores/${r.store.id}/settings`);
     } catch (e) { setErr(e instanceof Error ? e.message : 'Could not add the store'); } finally { setBusy(false); }

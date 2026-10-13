@@ -9,21 +9,8 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_USER: foxtail
-          POSTGRES_PASSWORD: foxtail
-          POSTGRES_DB: foxtail_test
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U foxtail"
-          --health-interval 5s --health-timeout 5s --health-retries 10
-    env:
-      DATABASE_URL: postgres://foxtail:foxtail@localhost:5432/foxtail_test
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7

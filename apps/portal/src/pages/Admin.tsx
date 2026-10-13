@@ -47,8 +47,8 @@ function OneTimePassword({ email, password, onClose }: { email: string; password
 
 function Logins() {
   const { user: me } = useAuth();
-  const users = useApi<{ users: AdminUser[] }>('/users');
-  const fr = useApi<{ franchisees: Franchisee[] }>('/franchisees');
+  const users = useApi<{ users: AdminUser[] }>('/foxtail/users');
+  const fr = useApi<{ franchisees: Franchisee[] }>('/foxtail/franchisees');
   const [edit, setEdit] = useState<AdminUser | 'new' | null>(null);
   const [otp, setOtp] = useState<{ email: string; password: string } | null>(null);
   const frName = new Map((fr.data?.franchisees || []).map(f => [f.id, f.name]));
@@ -89,13 +89,13 @@ function LoginEditor({ user, franchisees, onClose, onSaved }: { user: AdminUser 
   const go = async (fn: () => Promise<void>) => { setBusy(true); setErr(null); try { await fn(); } catch (e) { setErr(e instanceof Error ? e.message : 'Could not save'); } finally { setBusy(false); } };
   const save = () => go(async () => {
     const body = { name: f.name, role: f.role, franchiseeId: f.role === 'franchise_owner' ? f.franchiseeId || null : null };
-    if (user) { await apiPatch(`/users/${user.id}`, { ...body, disabled: f.disabled }); onSaved(null, user.email); }
-    else { const r = await apiPost<{ temporaryPassword: string }>('/users', { ...body, email: f.email }); onSaved(r.temporaryPassword, f.email); }
+    if (user) { await apiPatch(`/foxtail/users/${user.id}`, { ...body, disabled: f.disabled }); onSaved(null, user.email); }
+    else { const r = await apiPost<{ temporaryPassword: string }>('/foxtail/users', { ...body, email: f.email }); onSaved(r.temporaryPassword, f.email); }
   });
   return (
     <Modal title={user ? `Edit ${user.email}` : 'Add login'} open onClose={onClose}
       footer={<>
-        {user && <button type="button" className="btn-ghost mr-auto" disabled={busy} onClick={() => go(async () => { if (!confirm('Reset this password? Their current sessions end.')) return; const r = await apiPost<{ temporaryPassword: string }>(`/users/${user.id}/reset-password`, {}); onSaved(r.temporaryPassword, user.email); })}>Reset password</button>}
+        {user && <button type="button" className="btn-ghost mr-auto" disabled={busy} onClick={() => go(async () => { if (!confirm('Reset this password? Their current sessions end.')) return; const r = await apiPost<{ temporaryPassword: string }>(`/foxtail/users/${user.id}/reset-password`, {}); onSaved(r.temporaryPassword, user.email); })}>Reset password</button>}
         <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
         <button type="button" className="btn-primary" disabled={busy || (!user && !f.email) || (f.role === 'franchise_owner' && !f.franchiseeId)} onClick={save}>{busy ? 'Saving…' : user ? 'Save' : 'Create login'}</button>
       </>}>
@@ -124,7 +124,7 @@ function LoginEditor({ user, franchisees, onClose, onSaved }: { user: AdminUser 
 }
 
 function Franchisees() {
-  const fr = useApi<{ franchisees: Franchisee[] }>('/franchisees');
+  const fr = useApi<{ franchisees: Franchisee[] }>('/foxtail/franchisees');
   const [edit, setEdit] = useState<Franchisee | 'new' | null>(null);
   return (
     <>
@@ -160,9 +160,9 @@ function FranchiseeEditor({ f, onClose, onSaved }: { f: Franchisee | null; onClo
   return (
     <Modal title={f ? `Edit ${f.name}` : 'Add franchisee'} open onClose={onClose}
       footer={<>
-        {f && <button type="button" className="btn-ghost text-bad mr-auto" disabled={busy} onClick={() => confirm(`Delete ${f.name}?`) && go(() => apiDelete(`/franchisees/${f.id}`))}>Delete</button>}
+        {f && <button type="button" className="btn-ghost text-bad mr-auto" disabled={busy} onClick={() => confirm(`Delete ${f.name}?`) && go(() => apiDelete(`/foxtail/franchisees/${f.id}`))}>Delete</button>}
         <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
-        <button type="button" className="btn-primary" disabled={busy || !v.name.trim()} onClick={() => go(() => (f ? apiPatch(`/franchisees/${f.id}`, v) : apiPost('/franchisees', v)))}>{busy ? 'Saving…' : 'Save'}</button>
+        <button type="button" className="btn-primary" disabled={busy || !v.name.trim()} onClick={() => go(() => (f ? apiPatch(`/foxtail/franchisees/${f.id}`, v) : apiPost('/foxtail/franchisees', v)))}>{busy ? 'Saving…' : 'Save'}</button>
       </>}>
       <div className="space-y-3">
         <ErrorNote error={err} />
@@ -178,7 +178,7 @@ function FranchiseeEditor({ f, onClose, onSaved }: { f: Franchisee | null; onClo
 }
 
 function Activity() {
-  const { data, error } = useApi<{ entries: Array<{ at: string; user: string | null; action: string; store: string | null; detail: Record<string, unknown> }> }>('/audit?limit=200');
+  const { data, error } = useApi<{ entries: Array<{ at: string; user: string | null; action: string; store: string | null; detail: Record<string, unknown> }> }>('/foxtail/audit?limit=200');
   if (!data) return error ? <ErrorNote error={error} /> : <Loading />;
   return (
     <Card title="Recent changes">
@@ -219,7 +219,7 @@ function ImportCameras() {
     if (!file) return;
     setBusy(true); setErr(null);
     try {
-      const r = await apiPost<ImportResult>('/imports/ezcloud-channels', { csv: file.text, dryRun });
+      const r = await apiPost<ImportResult>('/foxtail/imports/ezcloud', { csv: file.text, dryRun });
       if (dryRun) setPreview(r); else { setDone(r); setPreview(null); setFile(null); }
     } catch (e) { setErr(e instanceof Error ? e.message : 'Import failed'); } finally { setBusy(false); }
   };

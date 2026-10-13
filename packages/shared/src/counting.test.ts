@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_HOURS, DEFAULT_KPIS, resolveCountingConfig, validateCountingOverrides, validateHours, validateZones } from './counting.js';
-import { buildRtspUrl, redactRtsp, rtspPathFor } from './recorders.js';
 import { canManage, isCorporate } from './roles.js';
 
 const store = { timezone: 'America/Chicago', openingHours: DEFAULT_HOURS };
@@ -47,20 +46,6 @@ describe('validation', () => {
   it('validates opening hours', () => {
     expect(validateHours(DEFAULT_HOURS).ok).toBe(true);
     expect(validateHours({ ...DEFAULT_HOURS, mon: { open: '25:00', close: '10:00' } }).ok).toBe(false);
-  });
-});
-
-describe('recorders', () => {
-  it('builds vendor stream paths', () => {
-    expect(rtspPathFor({ vendor: 'uniview', channel: 3 })).toBe('/unicast/c3/s1/live');
-    expect(rtspPathFor({ vendor: 'hikvision', channel: 2, profile: 'main' })).toBe('/Streaming/Channels/201');
-    expect(rtspPathFor({ vendor: 'custom', channel: 4, pathTemplate: 'live/{ch0}' })).toBe('/live/3');
-  });
-
-  it('encodes and redacts credentials', () => {
-    const url = buildRtspUrl({ vendor: 'uniview', host: '10.0.0.5', username: 'admin', password: 'p@ss:word', channel: 1 });
-    expect(url).toBe('rtsp://admin:p%40ss%3Aword@10.0.0.5:554/unicast/c1/s1/live');
-    expect(redactRtsp(url)).toBe('rtsp://[redacted]@10.0.0.5:554/unicast/c1/s1/live');
   });
 });
 

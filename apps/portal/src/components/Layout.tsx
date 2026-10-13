@@ -22,6 +22,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const [menu, setMenu] = useState(false);
   const loc = useLocation();
   const items: Array<{ to: string; label: string; end?: boolean }> = [
+    { to: '/security', label: 'Security' },
     { to: '/', label: isCorporate ? 'Overview' : 'My stores', end: true },
     { to: '/stores', label: 'Stores' },
     { to: '/cameras', label: 'Cameras' },
