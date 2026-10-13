@@ -23,12 +23,13 @@ export function RangeBar({ range, hours, setRange, setHours, showHours = true }:
   const daysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toLocaleDateString('en-CA'); };
   const single = /^\d{4}-\d{2}-\d{2}$/.test(range) ? range : '';
   const custom = /^(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})$/.exec(range);
-  const mode = custom ? 'custom' : single ? 'date' : range;
+  const is30d = custom && custom[1] === daysAgo(30) && custom[2] === daysAgo(1);
+  const mode = is30d ? '30d' : custom ? 'custom' : single ? 'date' : range;
   return (
     <div className="flex flex-wrap items-center gap-2" data-testid="range-bar">
       <select aria-label="Period" className={CTRL} value={mode} onChange={e => {
         const v = e.target.value;
-        setRange(v === 'date' ? daysAgo(1) : v === 'custom' ? `${daysAgo(7)}..${daysAgo(1)}` : v);
+        setRange(v === 'date' ? daysAgo(1) : v === 'custom' ? `${daysAgo(7)}..${daysAgo(1)}` : v === '30d' ? `${daysAgo(30)}..${daysAgo(1)}` : v);
       }}>
         <option value="today">Today</option>
         <option value="yesterday">Yesterday</option>

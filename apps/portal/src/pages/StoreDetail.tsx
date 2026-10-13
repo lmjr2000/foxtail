@@ -57,6 +57,8 @@ export default function StoreDetail() {
             <div className="callout callout-info">No camera counts for this store in this period{range === 'today' ? ' yet' : ''}.</div>
           ) : ds.samplingEnabled && ds.live && ds.openNow && !ds.fresh ? (
             <div className="callout callout-warn">No new camera counts in the last few minutes. The numbers below are real up to {fmtAgo(ds.lastRoundAt)}.</div>
+          ) : ds.hasData && !ds.fresh && range === 'today' && ds.lastRoundAt ? (
+            <div className="callout callout-info text-sm">Counting paused since {fmtAgo(ds.lastRoundAt)}. The numbers below are from the last active period.</div>
           ) : null}
 
           {ds.zonesMeasurable > 0 && (
