@@ -1,0 +1,1994 @@
+openapi: 3.1.0
+info:
+  title: Omni Foxtail API
+  version: 1.0.0
+  description: |
+    API contract for the Foxtail portal frontend. Implemented in Omni (Eye of Omni's backend)
+    at `/api/v1/auth/*` and `/api/v1/foxtail/*`. This document defines what the Foxtail portal
+    expects; the Omni side implements these endpoints with its existing services.
+
+    ## Access Model
+
+    Three Foxtail-specific roles, all with a non-empty site scope:
+    - **corporate_admin**: All Foxtail sites, full access including settings/users
+    - **corporate_viewer**: All Foxtail sites, read-only
+    - **franchise_owner**: Only sites belonging to their franchisee, read + downloads
+
+    A default-deny gate ensures Foxtail logins can only reach `/auth/*`, `/foxtail/*`, and `/hls/*`.
+    A store outside scope returns 404 (indistinguishable from "does not exist").
+
+    ## Video
+
+    Cameras return `hlsUrl` and `thumbnailUrl` pointing to Omni's `/hls/...` endpoints.
+    The portal opens these URLs directly. Omni sets a scope-checked cookie on login.
+
+servers:
+  - url: '{baseUrl}/api/v1'
+    description: Omni Foxtail API
+    variables:
+      baseUrl:
+        default: https://omni.example.com
+        description: Omni server base URL
+
+tags:
+  - name: auth
+    description: Authentication (shared with Omni)
+  - name: stores
+    description: Stores within scope
+  - name: insights
+    description: Business insights / counting data
+  - name: pos
+    description: POS data comparison
+  - name: counting
+    description: Counting configuration (corporate only)
+  - name: cameras
+    description: Camera status and video
+  - name: security
+    description: Security alerts and camera health
+  - name: people
+    description: Franchisees, users, audit (admin only)
+  - name: reports
+    description: PDF/CSV reports
+
+paths:
+  # ============================================================================
+  # AUTH
+  # ============================================================================
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Sign in with email and password
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          description: Too many attempts
+
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: Current session user
+      operationId: getMe
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Session info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/SessionUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/providers:
+    get:
+      tags: [auth]
+      summary: Available auth providers (e.g. Google)
+      operationId: getProviders
+      responses:
+        '200':
+          description: Provider config
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  googleClientId:
+                    type: string
+                    nullable: true
+                    description: Google OAuth client ID, or null if Google sign-in is disabled
+
+  /auth/google:
+    post:
+      tags: [auth]
+      summary: Sign in with Google ID token
+      operationId: googleLogin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [credential]
+              properties:
+                credential:
+                  type: string
+                  description: Google ID token from the Google Sign-In button
+      responses:
+        '200':
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/change-password:
+    post:
+      tags: [auth]
+      summary: Change password
+      operationId: changePassword
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword:
+                  type: string
+                newPassword:
+                  type: string
+                  minLength: 10
+      responses:
+        '200':
+          description: Password changed; returns new token to maintain the session
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, token]
+                properties:
+                  ok:
+                    type: boolean
+                    description: Always true on success
+                  token:
+                    type: string
+                    description: New JWT token to replace the old one
+        '400':
+          description: New password too weak (must be at least 10 characters)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================================================
+  # SECURITY / ALERTS (first in nav)
+  # ============================================================================
+  /foxtail/alerts:
+    get:
+      tags: [security]
+      summary: Open alerts for stores in scope
+      operationId: listAlerts
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, acknowledged, all]
+            default: open
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: Alerts list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alerts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Alert'
+                  counts:
+                    type: object
+                    properties:
+                      critical:
+                        type: integer
+                      high:
+                        type: integer
+                      info:
+                        type: integer
+
+  /foxtail/alerts/{alertId}:
+    get:
+      tags: [security]
+      summary: Alert detail
+      operationId: getAlert
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: alertId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Alert detail with snapshot URL if available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /foxtail/alerts/{alertId}/acknowledge:
+    post:
+      tags: [security]
+      summary: Acknowledge an alert (corporate admin only)
+      operationId: acknowledgeAlert
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: alertId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Acknowledged
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /foxtail/alerts/{alertId}/snapshot.jpg:
+    get:
+      tags: [security]
+      summary: AI detection snapshot image (when available)
+      operationId: getAlertSnapshot
+      description: Returns the AI detection snapshot for alerts that have one. Not all alerts have snapshots.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: alertId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: JPEG snapshot image
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Alert not found or no snapshot available
+
+  /foxtail/camera-health:
+    get:
+      tags: [security]
+      summary: Camera online/offline status across all stores in scope
+      operationId: getCameraHealth
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Camera health summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stores:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        siteId:
+                          type: string
+                        name:
+                          type: string
+                        online:
+                          type: integer
+                        offline:
+                          type: integer
+                        total:
+                          type: integer
+                        cameras:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/CameraStatus'
+                  totals:
+                    type: object
+                    properties:
+                      online:
+                        type: integer
+                      offline:
+                        type: integer
+
+  # ============================================================================
+  # STORES
+  # ============================================================================
+  /foxtail/stores:
+    get:
+      tags: [stores]
+      summary: List stores in scope
+      operationId: listStores
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Stores list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stores:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/StoreListItem'
+
+  /foxtail/stores/{siteId}:
+    get:
+      tags: [stores]
+      summary: Store details
+      operationId: getStore
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/siteId'
+      responses:
+        '200':
+          description: Store details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  store:
+                    $ref: '#/components/schemas/Store'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [stores]
+      summary: Update store (corporate admin)
+      operationId: updateStore
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/siteId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreUpdate'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  store:
+                    $ref: '#/components/schemas/Store'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [stores]
+      summary: Hide store from Foxtail (corporate admin)
+      operationId: hideStore
+      description: Hides this store from Foxtail lists, reports and logins. The site remains in Omni and can be shown again later. Counting stops while hidden.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/siteId'
+      responses:
+        '200':
+          description: Store hidden
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # OVERVIEW & ALL-STORES REPORTS
+  # ============================================================================
+  /foxtail/overview:
+    get:
+      tags: [insights]
+      summary: Overview of all stores in scope
+      operationId: getOverview
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: range
+          in: query
+          schema:
+            type: string
+            default: '7d'
+          description: 'Date range: today, yesterday, 7d, 30d, mtd, lastMonth, YYYY-MM-DD, or YYYY-MM-DD..YYYY-MM-DD'
+        - name: hours
+          in: query
+          schema:
+            type: string
+          description: 'Hour filter: open, all, or HH-HH (e.g. 06-20)'
+      responses:
+        '200':
+          description: Overview data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Overview'
+
+  /foxtail/reports/all-stores.pdf:
+    get:
+      tags: [reports]
+      summary: All-stores report (PDF)
+      operationId: getAllStoresPdf
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: range
+          in: query
+          schema:
+            type: string
+            default: '7d'
+      responses:
+        '200':
+          description: PDF report
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+  /foxtail/reports/all-stores.csv:
+    get:
+      tags: [reports]
+      summary: All-stores report (CSV)
+      operationId: getAllStoresCsv
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: range
+          in: query
+          schema:
+            type: string
+            default: '7d'
+      responses:
+        '200':
+          description: CSV report
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  # ============================================================================
+  # STORE INSIGHTS & REPORTS
+  # ============================================================================
+  /foxtail/stores/{siteId}/insights:
+    get:
+      tags: [insights]
+      summary: Store dashboard data
+      operationId: getStoreInsights
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/siteId'
+        - name: range
+          in: query
+          schema:
+            type: string
+            default: 'today'
+        - name: hours
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Insights data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Insights'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /foxtail/stores/{siteId}/report.pdf:
+    get:
+      tags: [reports]
+      summary: Store report (PDF)
+      operationId: getStoreReportPdf
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/siteId'
+        - name: range
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: PDF report
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+  /foxtail/stores/{siteId}/report.csv:
+    get:
+      tags: [reports]
+      summary: Store report (CSV)
+      operationId: getStoreReportCsv
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/siteId'
+        - name: range
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: CSV report
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /foxtail/stores/{siteId}/hourly.csv:
+    get:
+      tags: [reports]
+      summary: Hourly data export (CSV)
+      operationId: getStoreHourlyCsv
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/siteId'
+        - name: range
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Hourly CSV
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  # ============================================================================
+  # POS COMPARISON
+  # ============================================================================
+  /foxtail/stores/{siteId}/pos-compare:
+    get:
+      tags: [pos]
+      summary: Traffic vs POS sales comparison
+      operationId: getPosCompare
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/siteId'
+        - name: range
+          in: query
+          schema:
+            type: string
+            default: '7d'
+      responses:
+        '200':
+          description: POS comparison data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PosComparison'
+
+  /foxtail/stores/{siteId}/pos-compare.csv:
+    get:
+      tags: [pos]
+      summary: Traffic vs POS comparison (CSV)
+      operationId: getPosCompareCsv
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/siteId'
+        - name: range
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: CSV
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /foxtail/stores/{siteId}/pos-upload:
+    post:
+      tags: [pos]
+      summary: Upload POS data (corporate admin)
+      operationId: uploadPos
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/siteId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [csv]
+              properties:
+                csv:
+                  type: string
+                  description: POS export CSV content
+                date:
+                  type: string
+                  format: date
+                  description: Override date for single-day CSVs
+                dryRun:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: Upload result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  saved:
+                    type: integer
+                  dryRun:
+                    type: boolean
+                  source:
+                    type: string
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+                  days:
+                    type: array
+                    items:
+                      type: string
+                      format: date
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /foxtail/stores/{siteId}/pos/{date}:
+    delete:
+      tags: [pos]
+      summary: Delete POS data for a day (corporate admin)
+      operationId: deletePosDay
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/siteId'
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ============================================================================
+  # ACCURACY CHECKS
+  # ============================================================================
+  /foxtail/stores/{siteId}/accuracy:
+    get:
+      tags: [insights]
+      summary: Accuracy checks (corporate)
+      operationId: getAccuracy
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/siteId'
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 90
+      responses:
+        '200':
+          description: Accuracy data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccuracyData'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags: [insights]
+      summary: Add accuracy check (corporate admin)
+      operationId: addAccuracyCheck
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/siteId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccuracyCheckInput'
+      responses:
+        '201':
+          description: Check added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  check:
+                    $ref: '#/components/schemas/AccuracyCheck'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /foxtail/stores/{siteId}/accuracy/{checkId}:
+    delete:
+      tags: [insights]
+      summary: Delete accuracy check (corporate admin)
+      operationId: deleteAccuracyCheck
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/siteId'
+        - name: checkId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # COUNTING CONFIG (corporate only)
+  # ============================================================================
+  /foxtail/stores/{siteId}/counting:
+    get:
+      tags: [counting]
+      summary: Counting configuration (corporate)
+      operationId: getCounting
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/siteId'
+      responses:
+        '200':
+          description: Counting config
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CountingConfig'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /foxtail/stores/{siteId}/counting/profile:
+    put:
+      tags: [counting]
+      summary: Save counting profile (corporate admin)
+      operationId: saveCountingProfile
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/siteId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CountingProfileInput'
+      responses:
+        '200':
+          description: Saved
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /foxtail/stores/{siteId}/counting/zones:
+    put:
+      tags: [counting]
+      summary: Save counting zones (corporate admin)
+      operationId: saveCountingZones
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/siteId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                zones:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ZoneInput'
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  zones:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Zone'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /foxtail/stores/{siteId}/counting/test:
+    post:
+      tags: [counting]
+      summary: Test counting on a camera (corporate admin)
+      operationId: testCounting
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/siteId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cameraId]
+              properties:
+                cameraId:
+                  type: string
+                zones:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ZoneInput'
+      responses:
+        '200':
+          description: Test result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  error:
+                    type: string
+                    nullable: true
+                  people:
+                    type: array
+                    items:
+                      type: object
+                  zones:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        zoneId:
+                          type: string
+                        label:
+                          type: string
+                        count:
+                          type: integer
+                  imageBase64:
+                    type: string
+                    nullable: true
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ============================================================================
+  # CAMERAS
+  # ============================================================================
+  /foxtail/stores/{siteId}/cameras:
+    get:
+      tags: [cameras]
+      summary: List cameras at a store
+      operationId: listCameras
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/siteId'
+      responses:
+        '200':
+          description: Cameras list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cameras:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Camera'
+                  video:
+                    type: object
+                    properties:
+                      mode:
+                        type: string
+                        enum: [live, pictures, none]
+                      reason:
+                        type: string
+                        nullable: true
+                  recorderModel:
+                    type: string
+                    nullable: true
+
+  /foxtail/stores/{siteId}/cameras/{cameraId}/frame.jpg:
+    get:
+      tags: [cameras]
+      summary: Get camera frame for zone drawing (corporate admin)
+      operationId: getCameraFrame
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/siteId'
+        - name: cameraId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: JPEG frame
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '502':
+          description: Could not get frame from camera
+
+  # ============================================================================
+  # FRANCHISEES (corporate admin)
+  # ============================================================================
+  /foxtail/franchisees:
+    get:
+      tags: [people]
+      summary: List franchisees (corporate admin)
+      operationId: listFranchisees
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Franchisees list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  franchisees:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Franchisee'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags: [people]
+      summary: Create franchisee (corporate admin)
+      operationId: createFranchisee
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FranchiseeInput'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  franchisee:
+                    $ref: '#/components/schemas/Franchisee'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /foxtail/franchisees/{franchiseeId}:
+    patch:
+      tags: [people]
+      summary: Update franchisee (corporate admin)
+      operationId: updateFranchisee
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: franchiseeId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FranchiseeInput'
+      responses:
+        '200':
+          description: Updated
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    delete:
+      tags: [people]
+      summary: Delete franchisee (corporate admin)
+      operationId: deleteFranchisee
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: franchiseeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Franchisee still has stores or users
+
+  # ============================================================================
+  # USERS (corporate admin)
+  # ============================================================================
+  /foxtail/users:
+    get:
+      tags: [people]
+      summary: List users (corporate admin)
+      operationId: listUsers
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Users list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminUser'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags: [people]
+      summary: Create user (corporate admin)
+      operationId: createUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserInput'
+      responses:
+        '201':
+          description: Created with temporary password
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/AdminUser'
+                  temporaryPassword:
+                    type: string
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /foxtail/users/{userId}:
+    patch:
+      tags: [people]
+      summary: Update user (corporate admin)
+      operationId: updateUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserInput'
+      responses:
+        '200':
+          description: Updated
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /foxtail/users/{userId}/reset-password:
+    post:
+      tags: [people]
+      summary: Reset user password (corporate admin)
+      operationId: resetUserPassword
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Password reset; returns temporary password
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  temporaryPassword:
+                    type: string
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ============================================================================
+  # AUDIT LOG (corporate admin)
+  # ============================================================================
+  /foxtail/audit:
+    get:
+      tags: [people]
+      summary: Audit log (corporate admin)
+      operationId: getAuditLog
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+        - name: before
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Audit entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditEntry'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # Note: EZCloud import (/foxtail/imports/ezcloud) is not available via Omni.
+  # It returns 410 Gone. Stores and cameras are managed in Omni directly.
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: JWT token from /auth/login or /auth/google
+
+  parameters:
+    siteId:
+      name: siteId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Omni site ID (maps to Foxtail store)
+
+  responses:
+    Unauthorized:
+      description: Not authenticated or session expired
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              message:
+                type: string
+    Forbidden:
+      description: Not authorized for this action
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              message:
+                type: string
+    NotFound:
+      description: Resource not found or not in scope
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              message:
+                type: string
+
+  schemas:
+    SessionUser:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [corporate_admin, corporate_viewer, franchise_owner]
+          description: Foxtail-specific role
+        omniRole:
+          type: string
+          description: Omni role (may differ from Foxtail role)
+        franchiseeId:
+          type: string
+          nullable: true
+        mustChangePassword:
+          type: boolean
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/SessionUser'
+
+    Store:
+      type: object
+      properties:
+        id:
+          type: string
+        storeNumber:
+          type: string
+          nullable: true
+        name:
+          type: string
+        address:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        state:
+          type: string
+          nullable: true
+        postalCode:
+          type: string
+          nullable: true
+        timezone:
+          type: string
+        openingHours:
+          $ref: '#/components/schemas/OperatingHours'
+        franchiseeId:
+          type: string
+          nullable: true
+        franchiseeName:
+          type: string
+          nullable: true
+
+    StoreListItem:
+      allOf:
+        - $ref: '#/components/schemas/Store'
+        - type: object
+          properties:
+            counting:
+              type: object
+              properties:
+                areas:
+                  type: integer
+                measurable:
+                  type: integer
+                enabled:
+                  type: boolean
+                lastSampleAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+            cameras:
+              type: object
+              properties:
+                total:
+                  type: integer
+                online:
+                  type: integer
+                offline:
+                  type: integer
+                statusAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                video:
+                  type: string
+                  enum: [live, pictures, none]
+
+    StoreUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        storeNumber:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        state:
+          type: string
+          nullable: true
+        postalCode:
+          type: string
+          nullable: true
+        timezone:
+          type: string
+        openingHours:
+          $ref: '#/components/schemas/OperatingHours'
+        franchiseeId:
+          type: string
+          nullable: true
+
+    OperatingHours:
+      type: object
+      properties:
+        sun:
+          $ref: '#/components/schemas/DayHours'
+        mon:
+          $ref: '#/components/schemas/DayHours'
+        tue:
+          $ref: '#/components/schemas/DayHours'
+        wed:
+          $ref: '#/components/schemas/DayHours'
+        thu:
+          $ref: '#/components/schemas/DayHours'
+        fri:
+          $ref: '#/components/schemas/DayHours'
+        sat:
+          $ref: '#/components/schemas/DayHours'
+
+    DayHours:
+      type: object
+      nullable: true
+      properties:
+        open:
+          type: string
+          description: HH:MM
+        close:
+          type: string
+          description: HH:MM
+
+    Camera:
+      type: object
+      properties:
+        id:
+          type: string
+        storeId:
+          type: string
+        name:
+          type: string
+        channel:
+          type: integer
+        enabled:
+          type: boolean
+        status:
+          type: string
+          enum: [online, offline, unknown]
+        statusAt:
+          type: string
+          format: date-time
+          nullable: true
+        thumbnailUrl:
+          type: string
+          nullable: true
+          description: URL to latest thumbnail image
+        hlsUrl:
+          type: string
+          nullable: true
+          description: URL to live HLS stream (when video mode is 'live')
+
+    CameraStatus:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        channel:
+          type: integer
+        status:
+          type: string
+          enum: [online, offline, unknown]
+        statusAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    Alert:
+      type: object
+      properties:
+        id:
+          type: string
+        siteId:
+          type: string
+        storeName:
+          type: string
+        severity:
+          type: string
+          enum: [critical, high, info]
+          description: Only these three severity levels are used
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [open, acknowledged]
+        cameraId:
+          type: string
+          nullable: true
+        cameraName:
+          type: string
+          nullable: true
+
+    AlertDetail:
+      allOf:
+        - $ref: '#/components/schemas/Alert'
+        - type: object
+          properties:
+            detail:
+              type: string
+              nullable: true
+            snapshotUrl:
+              type: string
+              nullable: true
+              description: URL to /foxtail/alerts/{id}/snapshot.jpg (AI snapshots only, not all alerts have one)
+            acknowledgedAt:
+              type: string
+              format: date-time
+              nullable: true
+            acknowledgedBy:
+              type: string
+              nullable: true
+
+    Overview:
+      type: object
+      properties:
+        range:
+          type: object
+          properties:
+            key:
+              type: string
+            label:
+              type: string
+            compareLabel:
+              type: string
+              nullable: true
+        hoursLabel:
+          type: string
+        generatedAt:
+          type: string
+          format: date-time
+        totals:
+          type: object
+          properties:
+            stores:
+              type: integer
+            storesCounting:
+              type: integer
+            entered:
+              type: integer
+              nullable: true
+            avgWaitSeconds:
+              type: number
+              nullable: true
+            walkaways:
+              type: integer
+              nullable: true
+            sales:
+              type: number
+              nullable: true
+            transactions:
+              type: integer
+              nullable: true
+            conversionPct:
+              type: number
+              nullable: true
+        stores:
+          type: array
+          items:
+            $ref: '#/components/schemas/OverviewStore'
+        worstHours:
+          type: array
+          items:
+            type: object
+        byHour:
+          type: array
+          items:
+            type: object
+
+    OverviewStore:
+      type: object
+      properties:
+        storeId:
+          type: string
+        name:
+          type: string
+        storeNumber:
+          type: string
+          nullable: true
+        status:
+          type: string
+        statusText:
+          type: string
+        entered:
+          type: integer
+          nullable: true
+        avgWaitSeconds:
+          type: number
+          nullable: true
+        sales:
+          type: number
+          nullable: true
+        conversionPct:
+          type: number
+          nullable: true
+
+    Insights:
+      type: object
+      description: Full insights response (same structure as original Foxtail API)
+      properties:
+        timezone:
+          type: string
+        range:
+          type: object
+        compare:
+          type: object
+          nullable: true
+        dataStatus:
+          type: object
+        kpis:
+          type: array
+          items:
+            type: object
+        metrics:
+          type: object
+        chart:
+          type: object
+        queue:
+          type: object
+        pickup:
+          type: object
+        staffing:
+          type: object
+        utilization:
+          type: object
+        flow:
+          type: object
+        keyMoments:
+          type: array
+          items:
+            type: object
+        insights:
+          type: array
+          items:
+            type: object
+        recommendations:
+          type: array
+          items:
+            type: object
+        hourOfDay:
+          type: array
+          items:
+            type: object
+
+    PosComparison:
+      type: object
+      properties:
+        range:
+          type: object
+        timezone:
+          type: string
+        summary:
+          type: object
+        rows:
+          type: array
+          items:
+            type: object
+        uploads:
+          type: array
+          items:
+            type: object
+
+    AccuracyData:
+      type: object
+      properties:
+        targets:
+          type: object
+          properties:
+            countPct:
+              type: number
+            waitSeconds:
+              type: number
+        summary:
+          type: object
+          properties:
+            count:
+              type: object
+            wait:
+              type: object
+        checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccuracyCheck'
+
+    AccuracyCheck:
+      type: object
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum: [count, wait]
+        startAt:
+          type: string
+          format: date-time
+        minutes:
+          type: integer
+        manualValue:
+          type: number
+        systemValue:
+          type: number
+          nullable: true
+        coveragePct:
+          type: number
+          nullable: true
+        errorPct:
+          type: number
+          nullable: true
+        errorSeconds:
+          type: number
+          nullable: true
+        pass:
+          type: boolean
+          nullable: true
+        notes:
+          type: string
+
+    AccuracyCheckInput:
+      type: object
+      required: [kind, startAt, minutes, manualValue]
+      properties:
+        kind:
+          type: string
+          enum: [count, wait]
+        startAt:
+          type: string
+          format: date-time
+        minutes:
+          type: integer
+          minimum: 1
+          maximum: 240
+        manualValue:
+          type: number
+        manualN:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+
+    CountingConfig:
+      type: object
+      properties:
+        overrides:
+          type: object
+          nullable: true
+        config:
+          type: object
+        zones:
+          type: array
+          items:
+            $ref: '#/components/schemas/Zone'
+        cameras:
+          type: array
+          items:
+            $ref: '#/components/schemas/Camera'
+        sampler:
+          type: object
+          nullable: true
+        detector:
+          type: object
+          properties:
+            configured:
+              type: boolean
+        catalog:
+          type: object
+
+    Zone:
+      type: object
+      properties:
+        id:
+          type: string
+        zoneType:
+          type: string
+        label:
+          type: string
+        audience:
+          type: string
+          enum: [customer, staff]
+        cameraId:
+          type: string
+          nullable: true
+        polygon:
+          type: array
+          nullable: true
+          items:
+            type: array
+            items:
+              type: number
+        capacity:
+          type: integer
+          nullable: true
+        staffTargetMin:
+          type: integer
+          nullable: true
+        staffTargetMax:
+          type: integer
+          nullable: true
+        enabled:
+          type: boolean
+        sortOrder:
+          type: integer
+
+    ZoneInput:
+      type: object
+      properties:
+        id:
+          type: string
+        zoneType:
+          type: string
+        label:
+          type: string
+        audience:
+          type: string
+          enum: [customer, staff]
+        cameraId:
+          type: string
+          nullable: true
+        polygon:
+          type: array
+          nullable: true
+          items:
+            type: array
+            items:
+              type: number
+        capacity:
+          type: integer
+          nullable: true
+        staffTargetMin:
+          type: integer
+          nullable: true
+        staffTargetMax:
+          type: integer
+          nullable: true
+        enabled:
+          type: boolean
+        sortOrder:
+          type: integer
+
+    CountingProfileInput:
+      type: object
+      properties:
+        samplingEnabled:
+          type: boolean
+        sampleIntervalSeconds:
+          type: integer
+        kpiMetrics:
+          type: array
+          items:
+            type: string
+        enabledModules:
+          type: array
+          items:
+            type: string
+        thresholds:
+          type: object
+          additionalProperties:
+            type: number
+
+    Franchisee:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        contactName:
+          type: string
+          nullable: true
+        contactEmail:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        storeCount:
+          type: integer
+        loginCount:
+          type: integer
+
+    FranchiseeInput:
+      type: object
+      properties:
+        name:
+          type: string
+        contactName:
+          type: string
+          nullable: true
+        contactEmail:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+
+    AdminUser:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+        franchiseeId:
+          type: string
+          nullable: true
+        disabled:
+          type: boolean
+        mustChangePassword:
+          type: boolean
+        googleLinked:
+          type: boolean
+        lastLoginAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    UserInput:
+      type: object
+      properties:
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [corporate_admin, corporate_viewer, franchise_owner]
+        franchiseeId:
+          type: string
+          nullable: true
+        disabled:
+          type: boolean
+
+    AuditEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        action:
+          type: string
+        userId:
+          type: string
+        userName:
+          type: string
+        targetId:
+          type: string
+          nullable: true
+        details:
+          type: object
+        createdAt:
+          type: string
+          format: date-time

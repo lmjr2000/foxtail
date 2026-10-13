@@ -1,6 +1,8 @@
 /**
  * Store settings (corporate). Admins edit; corporate viewers see the same page read-only.
- * Tabs: details & hours · recorder & cameras · counting (areas, targets, which numbers show) · accuracy checks.
+ * Tabs: details & hours · counting (areas, targets, which numbers show) · accuracy checks.
+ *
+ * Note: Recorder settings are managed in Omni, not here. Foxtail is a frontend-only app.
  */
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -13,7 +15,6 @@ import ZoneDrawer, { type Point } from '../components/ZoneDrawer';
 
 const TABS = [
   { key: 'details', label: 'Details & hours' },
-  { key: 'recorder', label: 'Recorder & cameras' },
   { key: 'counting', label: 'Counting' },
   { key: 'accuracy', label: 'Accuracy checks' },
 ] as const;
@@ -35,7 +36,7 @@ export default function StoreSettings() {
   const [params, setParams] = useSearchParams();
   const tab = (TABS.some(t => t.key === params.get('tab')) ? params.get('tab') : 'details') as Tab;
   const { canManage } = useAuth();
-  const store = useApi<{ store: Store }>(`/stores/${storeId}`);
+  const store = useApi<{ store: Store }>(`/foxtail/stores/${storeId}`);
   const s = store.data?.store;
   return (
     <div className="space-y-4">
@@ -55,7 +56,6 @@ export default function StoreSettings() {
       <ErrorNote error={store.error} />
       {!s && !store.error && <Loading />}
       {s && tab === 'details' && <DetailsTab store={s} canManage={canManage} onSaved={store.reload} />}
-      {s && tab === 'recorder' && <RecorderTab storeId={storeId} canManage={canManage} />}
       {s && tab === 'counting' && <CountingTab storeId={storeId} canManage={canManage} />}
       {s && tab === 'accuracy' && <AccuracyTab storeId={storeId} canManage={canManage} timezone={s.timezone} />}
     </div>
@@ -69,18 +69,40 @@ const US_TZ = ['America/New_York', 'America/Chicago', 'America/Denver', 'America
 
 function DetailsTab({ store, canManage, onSaved }: { store: Store; canManage: boolean; onSaved: () => void }) {
   const nav = useNavigate();
-  const fr = useApi<{ franchisees: Franchisee[] }>('/franchisees');
+  const fr = useApi<{ franchisees: Franchisee[] }>('/foxtail/franchisees');
   const [f, setF] = useState({ name: store.name, storeNumber: store.storeNumber ?? '', address: store.address ?? '', city: store.city ?? '', state: store.state ?? '', postalCode: store.postalCode ?? '', timezone: store.timezone, franchiseeId: store.franchiseeId ?? '' });
   const [hours, setHours] = useState<OperatingHours>(store.openingHours);
-  const [archiving, setArchiving] = useState(false);
+  const [hiding, setHiding] = useState(false);
+  const [confirmRename, setConfirmRename] = useState(false);
   const { busy, run, note } = useSaver();
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF(x => ({ ...x, [k]: e.target.value }));
   const dis = !canManage;
+
+  const nameOrAddressChanged = f.name !== store.name || f.address !== (store.address ?? '') || f.city !== (store.city ?? '') || f.state !== (store.state ?? '');
+
+  const doSave = async () => {
+    await apiPatch(`/foxtail/stores/${store.id}`, { ...f, franchiseeId: f.franchiseeId || null, openingHours: hours });
+    onSaved();
+  };
+
+  const handleSave = () => {
+    if (nameOrAddressChanged) {
+      setConfirmRename(true);
+    } else {
+      run(doSave);
+    }
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <Card title="Store">
         <fieldset disabled={dis} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="sm:col-span-2"><Field label="Store name"><input className="input" value={f.name} onChange={set('name')} /></Field></div>
+          <div className="sm:col-span-2">
+            <Field label="Store name">
+              <input className="input" value={f.name} onChange={set('name')} />
+              {canManage && f.name !== store.name && <span className="text-xs text-warn mt-1 block">Changing the name will rename this site in Omni.</span>}
+            </Field>
+          </div>
           <Field label="Store number"><input className="input" value={f.storeNumber} onChange={set('storeNumber')} /></Field>
           <Field label="Franchisee" help="Franchise owners of this franchisee see this store; nobody else outside corporate does.">
             <select className="input" value={f.franchiseeId} onChange={set('franchiseeId')}>
@@ -88,14 +110,19 @@ function DetailsTab({ store, canManage, onSaved }: { store: Store; canManage: bo
               {fr.data?.franchisees.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
             </select>
           </Field>
-          <div className="sm:col-span-2"><Field label="Street address"><input className="input" value={f.address} onChange={set('address')} /></Field></div>
+          <div className="sm:col-span-2">
+            <Field label="Street address">
+              <input className="input" value={f.address} onChange={set('address')} />
+              {canManage && f.address !== (store.address ?? '') && <span className="text-xs text-warn mt-1 block">Changing the address will update this site in Omni.</span>}
+            </Field>
+          </div>
           <Field label="City"><input className="input" value={f.city} onChange={set('city')} /></Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="State"><input className="input" value={f.state} onChange={set('state')} /></Field>
             <Field label="ZIP"><input className="input" value={f.postalCode} onChange={set('postalCode')} /></Field>
           </div>
           <div className="sm:col-span-2">
-            <Field label="Time zone" help="“Today”, hours of day and opening hours are all in the store's own time zone.">
+            <Field label="Time zone" help="'Today', hours of day and opening hours are all in the store's own time zone.">
               <select className="input" value={f.timezone} onChange={set('timezone')}>
                 {[...new Set([...US_TZ, f.timezone])].map(t => <option key={t} value={t}>{t.replace('America/', '').replace('Pacific/', '').replace(/_/g, ' ')} ({t})</option>)}
               </select>
@@ -126,123 +153,26 @@ function DetailsTab({ store, canManage, onSaved }: { store: Store; canManage: bo
       </Card>
       {canManage && (
         <div className="lg:col-span-2 flex flex-wrap items-center gap-3">
-          <button type="button" className="btn-primary" disabled={busy || !f.name.trim()} onClick={() => run(async () => { await apiPatch(`/stores/${store.id}`, { ...f, franchiseeId: f.franchiseeId || null, openingHours: hours }); onSaved(); })}>{busy ? 'Saving…' : 'Save store'}</button>
+          <button type="button" className="btn-primary" disabled={busy || !f.name.trim()} onClick={handleSave}>{busy ? 'Saving…' : 'Save store'}</button>
           {note}
           <div className="flex-1" />
-          <button type="button" className="btn-ghost text-bad" onClick={() => setArchiving(true)}>Archive store…</button>
+          <button type="button" className="btn-ghost text-bad" onClick={() => setHiding(true)}>Hide store…</button>
         </div>
       )}
-      <Modal title="Archive store" open={archiving} onClose={() => setArchiving(false)} footer={<><button type="button" className="btn-ghost" onClick={() => setArchiving(false)}>Cancel</button><button type="button" className="btn-danger" onClick={async () => { await apiDelete(`/stores/${store.id}`); nav('/stores'); }}>Archive</button></>}>
-        <p className="text-sm text-ink-2">{store.name} will disappear from every list, report and login, and counting will stop. Its past numbers are kept in the database.</p>
+      <Modal title="Hide store" open={hiding} onClose={() => setHiding(false)} footer={<><button type="button" className="btn-ghost" onClick={() => setHiding(false)}>Cancel</button><button type="button" className="btn-danger" onClick={async () => { await apiDelete(`/foxtail/stores/${store.id}`); nav('/stores'); }}>Hide</button></>}>
+        <p className="text-sm text-ink-2"><b>{store.name}</b> will be hidden from Foxtail lists, reports and logins, and counting will stop. The site remains in Omni and can be shown again later.</p>
       </Modal>
-    </div>
-  );
-}
-
-// ------------------------------------------------------------------------------------- recorder
-
-interface Recorder { vendor: string; connection: 'direct' | 'edge'; host: string | null; rtspPort: number | null; username: string | null; hasPassword: boolean; pathTemplate: string | null; streamProfile: 'sub' | 'main'; edgeTokenSet: boolean; edgeLastSeenAt: string | null; edgeVersion: string | null; lastTestAt: string | null; lastTestOk: boolean | null; lastTestError: string | null }
-interface Camera { id: string; name: string; channel: number; enabled: boolean }
-
-function RecorderTab({ storeId, canManage }: { storeId: string; canManage: boolean }) {
-  const rec = useApi<{ recorder: Recorder | null; vendors: Array<{ key: string; label: string }> }>(`/stores/${storeId}/recorder`);
-  const cams = useApi<{ cameras: Camera[] }>(`/stores/${storeId}/cameras`);
-  const [f, setF] = useState({ vendor: 'uniview', connection: 'direct' as 'direct' | 'edge', host: '', rtspPort: '554', username: '', password: '', pathTemplate: '', streamProfile: 'sub' });
-  const [token, setToken] = useState<string | null>(null);
-  const [test, setTest] = useState<{ ok: boolean; message: string; detail?: string | null } | null>(null);
-  const [newCam, setNewCam] = useState({ name: '', channel: '' });
-  const saver = useSaver();
-  const camSaver = useSaver();
-  const r = rec.data?.recorder;
-  useEffect(() => {
-    if (r) setF({ vendor: r.vendor, connection: r.connection, host: r.host ?? '', rtspPort: String(r.rtspPort ?? 554), username: r.username ?? '', password: '', pathTemplate: r.pathTemplate ?? '', streamProfile: r.streamProfile });
-  }, [r]);
-  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF(x => ({ ...x, [k]: e.target.value }));
-  if (!rec.data && !rec.error) return <Loading />;
-  const dis = !canManage;
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <ErrorNote error={rec.error || cams.error} />
-      <Card title="Recorder" right={r?.lastTestAt ? <Pill tone={r.lastTestOk ? 'ok' : 'bad'}>{r.lastTestOk ? 'Last test passed' : 'Last test failed'} {fmtAgo(r.lastTestAt)}</Pill> : undefined}>
-        <fieldset disabled={dis} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="Brand">
-            <select className="input" value={f.vendor} onChange={set('vendor')}>{rec.data?.vendors.map(v => <option key={v.key} value={v.key}>{v.label}</option>)}</select>
-          </Field>
-          <Field label="How Foxtail reaches it">
-            <select className="input" value={f.connection} onChange={set('connection')}>
-              <option value="direct">Direct (address reachable from the internet)</option>
-              <option value="edge">Edge agent (recorder only reachable in the store)</option>
-            </select>
-          </Field>
-          {f.connection === 'direct' && <>
-            <Field label="Recorder address" help="Public IP or host name, no rtsp:// and no path."><input className="input" value={f.host} onChange={set('host')} placeholder="203.0.113.10" /></Field>
-            <Field label="RTSP port"><input className="input" inputMode="numeric" value={f.rtspPort} onChange={set('rtspPort')} /></Field>
-            <Field label="Username"><input className="input" autoComplete="off" value={f.username} onChange={set('username')} /></Field>
-            <Field label="Password" help={r?.hasPassword ? 'Saved (hidden). Leave blank to keep it.' : 'Stored encrypted; never shown again.'}><input className="input" type="password" autoComplete="new-password" value={f.password} onChange={set('password')} /></Field>
-          </>}
-          {f.vendor === 'custom' && <div className="sm:col-span-2"><Field label="Stream path" help="Use {ch} for the channel number, e.g. /live/ch{ch}"><input className="input" value={f.pathTemplate} onChange={set('pathTemplate')} /></Field></div>}
-          <Field label="Stream"><select className="input" value={f.streamProfile} onChange={set('streamProfile')}><option value="sub">Sub-stream (recommended)</option><option value="main">Main stream</option></select></Field>
-        </fieldset>
-        {canManage && (
-          <div className="flex flex-wrap items-center gap-2 mt-4">
-            <button type="button" className="btn-primary" disabled={saver.busy} onClick={() => saver.run(async () => {
-              await apiPut(`/stores/${storeId}/recorder`, { ...f, rtspPort: f.rtspPort ? Number(f.rtspPort) : null, password: f.password ? f.password : undefined });
-              setF(x => ({ ...x, password: '' })); rec.reload();
-            })}>Save recorder</button>
-            {r && <button type="button" className="btn-secondary" disabled={saver.busy} onClick={async () => {
-              setTest(null);
-              try { setTest(await apiPost(`/stores/${storeId}/recorder/test`, {})); } catch (e) { setTest({ ok: false, message: e instanceof Error ? e.message : 'Test failed' }); }
-              rec.reload();
-            }}>Test connection</button>}
-          </div>
-        )}
-        <div className="mt-3 space-y-2">
-          {saver.note}
-          {test && <div className={`callout ${test.ok ? 'callout-ok' : 'callout-bad'}`}>{test.message}{test.detail ? <div className="text-xs text-ink-3 mt-1">{test.detail}</div> : null}</div>}
-        </div>
-        {r?.connection === 'edge' && (
-          <div className="mt-4 rounded-lg border border-line bg-surface-2 p-3 text-sm space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-medium text-ink">Edge agent</span>
-              <Pill tone={r.edgeLastSeenAt && Date.now() - new Date(r.edgeLastSeenAt).getTime() < 3 * 60_000 ? 'ok' : 'neutral'}>{r.edgeLastSeenAt ? `Seen ${fmtAgo(r.edgeLastSeenAt)}${r.edgeVersion ? ` · v${r.edgeVersion}` : ''}` : 'Not connected yet'}</Pill>
-            </div>
-            <p className="text-xs text-ink-3">Runs on a small computer inside the store. The recorder login stays on that computer; Foxtail only receives pictures to count. See apps/edge-agent in the repo for setup.</p>
-            {canManage && <button type="button" className="btn-secondary btn-sm" onClick={async () => { if (!r.edgeTokenSet || confirm('Create a new edge token? The old one stops working immediately.')) { const t = await apiPost<{ token: string }>(`/stores/${storeId}/recorder/edge-token`, {}); setToken(t.token); rec.reload(); } }}>{r.edgeTokenSet ? 'Replace edge token' : 'Create edge token'}</button>}
-            {token && <div className="callout callout-warn text-xs break-all">Copy this now; it will not be shown again:<br /><code className="font-mono text-ink">{token}</code></div>}
-          </div>
-        )}
-      </Card>
-      <Card title="Cameras" right={<span className="text-xs text-ink-3">Recorder channels used for counting</span>}>
-        {!cams.data ? <Loading /> : (
-          <>
-            {cams.data.cameras.length === 0 && <p className="text-sm text-ink-3 mb-3">No cameras yet. Add the channels that look at the door, line, counter, pickup and seating.</p>}
-            <ul className="divide-y divide-line">
-              {cams.data.cameras.map(c => (
-                <li key={c.id} className="flex items-center gap-3 py-2 text-sm">
-                  <span className="w-14 text-ink-3 tabular-nums">Ch {c.channel}</span>
-                  <span className="flex-1 text-ink truncate">{c.name}</span>
-                  {canManage && <Toggle label={`${c.name} enabled`} checked={c.enabled} onChange={async v => { await apiPatch(`/stores/${storeId}/cameras/${c.id}`, { enabled: v }); cams.reload(); }} />}
-                  {canManage && <button type="button" className="btn-ghost btn-sm text-bad" onClick={async () => { if (confirm(`Remove ${c.name}? Areas drawn on it stop counting.`)) { await apiDelete(`/stores/${storeId}/cameras/${c.id}`); cams.reload(); } }}>Remove</button>}
-                </li>
-              ))}
-            </ul>
-            {canManage && (
-              <div className="flex flex-wrap items-end gap-2 mt-3">
-                <label className="block flex-1 min-w-[10rem]"><span className="input-label">Camera name</span><input className="input" value={newCam.name} onChange={e => setNewCam(x => ({ ...x, name: e.target.value }))} placeholder="Front counter" /></label>
-                <label className="block w-24"><span className="input-label">Channel</span><input className="input" inputMode="numeric" value={newCam.channel} onChange={e => setNewCam(x => ({ ...x, channel: e.target.value }))} /></label>
-                <button type="button" className="btn-secondary" disabled={camSaver.busy || !newCam.name.trim() || !newCam.channel} onClick={() => camSaver.run(async () => { await apiPost(`/stores/${storeId}/cameras`, { name: newCam.name, channel: Number(newCam.channel) }); setNewCam({ name: '', channel: '' }); cams.reload(); }, 'Camera added.')}>Add</button>
-              </div>
-            )}
-            <div className="mt-2">{camSaver.note}</div>
-          </>
-        )}
-      </Card>
+      <Modal title="Confirm site rename" open={confirmRename} onClose={() => setConfirmRename(false)} footer={<><button type="button" className="btn-ghost" onClick={() => setConfirmRename(false)}>Cancel</button><button type="button" className="btn-primary" onClick={() => { setConfirmRename(false); run(doSave); }}>Yes, rename in Omni</button></>}>
+        <p className="text-sm text-ink-2">Changing the name or address will <b>rename this site in the Omni system</b> — not just in Foxtail. This affects how the site appears in Eye of Omni and other Omni products.</p>
+        <p className="text-sm text-ink-3 mt-2">Are you sure you want to continue?</p>
+      </Modal>
     </div>
   );
 }
 
 // ------------------------------------------------------------------------------------- counting
 
+interface Camera { id: string; name: string; channel: number; enabled: boolean }
 interface ZoneRow { id: string; zoneType: ZoneType; label: string; audience: 'customer' | 'staff'; cameraId: string | null; polygon: Point[] | null; capacity: number | null; staffTargetMin: number | null; staffTargetMax: number | null; enabled: boolean; sortOrder: number }
 interface CountingResp {
   overrides: { kpiMetrics: string[] | null; enabledModules: string[] | null; thresholds: Record<string, number> | null; samplingEnabled: boolean; sampleIntervalSeconds: number } | null;
@@ -262,7 +192,7 @@ interface CountingResp {
 const MAIN_TARGETS = ['waitTargetSeconds', 'queueAlertSize', 'queueAlertMinutes', 'pickupTargetSeconds', 'understaffedMinutes', 'walkawayWindowSeconds'];
 
 function CountingTab({ storeId, canManage }: { storeId: string; canManage: boolean }) {
-  const { data, error, reload } = useApi<CountingResp>(`/stores/${storeId}/counting`);
+  const { data, error, reload } = useApi<CountingResp>(`/foxtail/stores/${storeId}/counting`);
   const [zones, setZones] = useState<ZoneRow[]>([]);
   const [kpis, setKpis] = useState<string[]>([]);
   const [modules, setModules] = useState<string[]>([]);
@@ -295,7 +225,7 @@ function CountingTab({ storeId, canManage }: { storeId: string; canManage: boole
     <div className="space-y-4">
       {!data.detector.configured && <div className="callout callout-warn">Person detection is not configured on this server yet (ROBOFLOW_API_KEY and PERSON_MODEL_ID), so no store will be counted until it is. Areas and targets can still be set up.</div>}
       <Card title="Counting areas" right={<span className="text-xs text-ink-3">{measurable} of {zones.length} ready to count</span>}>
-        {data.cameras.length === 0 && <div className="callout callout-info mb-3">Add the store's cameras on the “Recorder & cameras” tab first.</div>}
+        {data.cameras.length === 0 && <div className="callout callout-info mb-3">This store has no cameras registered yet. Import cameras from EZCloud under Admin → Import cameras.</div>}
         {zones.length === 0 && canManage && (
           <div className="rounded-lg bg-surface-2 p-4 text-sm text-ink-2 mb-3 flex flex-wrap items-center justify-between gap-3">
             <span>Start with the usual Foxtail areas: entrance, register line, ordering spot, behind the counter, pickup, seating.</span>
@@ -352,14 +282,14 @@ function CountingTab({ storeId, canManage }: { storeId: string; canManage: boole
           <div className="flex flex-wrap items-center gap-2 mt-3">
             <button type="button" className="btn-secondary btn-sm" onClick={() => setZones(zs => [...zs, { id: '', zoneType: 'QUEUE', label: 'New area', audience: 'customer', cameraId: data.cameras[0]?.id ?? null, polygon: null, capacity: null, staffTargetMin: null, staffTargetMax: null, enabled: true, sortOrder: zs.length }])}>Add area</button>
             <button type="button" className="btn-primary" disabled={zoneSaver.busy} onClick={() => zoneSaver.run(async () => {
-              const r = await apiPut<{ zones: ZoneRow[] }>(`/stores/${storeId}/counting/zones`, { zones });
+              const r = await apiPut<{ zones: ZoneRow[] }>(`/foxtail/stores/${storeId}/counting/zones`, { zones });
               setZones(r.zones);
             }, 'Areas saved.')}>Save areas</button>
             {data.detector.configured && data.cameras.length > 0 && (
               <select className="input !min-h-0 h-9 w-auto" value="" aria-label="Test counting on a camera" onChange={async e => {
                 const cameraId = e.target.value; if (!cameraId) return;
                 setTest({ cameraId, result: null });
-                try { setTest({ cameraId, result: await apiPost(`/stores/${storeId}/counting/test`, { cameraId, zones }) }); }
+                try { setTest({ cameraId, result: await apiPost(`/foxtail/stores/${storeId}/counting/test`, { cameraId, zones }) }); }
                 catch (err) { setTest({ cameraId, result: { ok: false, error: err instanceof Error ? err.message : 'Test failed', zones: [], people: [] } }); }
               }}>
                 <option value="">Test count on a camera…</option>
@@ -442,7 +372,7 @@ function CountingTab({ storeId, canManage }: { storeId: string; canManage: boole
           <button type="button" className="btn-primary" disabled={profSaver.busy || kpis.length === 0} onClick={() => profSaver.run(async () => {
             const defaults = Object.fromEntries(data.catalog.thresholds.map(t => [t.key, t.default]));
             const changed = Object.fromEntries(Object.entries(thr).filter(([k, v]) => v !== defaults[k]));
-            await apiPut(`/stores/${storeId}/counting/profile`, { samplingEnabled: on, sampleIntervalSeconds: interval, kpiMetrics: kpis, enabledModules: modules, thresholds: changed });
+            await apiPut(`/foxtail/stores/${storeId}/counting/profile`, { samplingEnabled: on, sampleIntervalSeconds: interval, kpiMetrics: kpis, enabledModules: modules, thresholds: changed });
             reload();
           }, 'Counting settings saved.')}>Save counting settings</button>
           {profSaver.note}
@@ -462,7 +392,7 @@ function CountingTab({ storeId, canManage }: { storeId: string; canManage: boole
 interface Check { id: string; kind: 'count' | 'wait'; startAt: string; minutes: number; manualValue: number; systemValue: number | null; coveragePct: number | null; errorPct: number | null; errorSeconds: number | null; pass: boolean | null; notes: string }
 
 function AccuracyTab({ storeId, canManage, timezone }: { storeId: string; canManage: boolean; timezone: string }) {
-  const { data, error, reload } = useApi<{ targets: { countPct: number; waitSeconds: number }; summary: { count: { n: number; avgError: number | null; passRatePct: number | null }; wait: { n: number; avgError: number | null; passRatePct: number | null } }; checks: Check[] }>(`/stores/${storeId}/accuracy`);
+  const { data, error, reload } = useApi<{ targets: { countPct: number; waitSeconds: number }; summary: { count: { n: number; avgError: number | null; passRatePct: number | null }; wait: { n: number; avgError: number | null; passRatePct: number | null } }; checks: Check[] }>(`/foxtail/stores/${storeId}/accuracy`);
   const [f, setF] = useState({ kind: 'count' as 'count' | 'wait', start: '', minutes: '30', manualValue: '', notes: '' });
   const saver = useSaver();
   if (!data) return error ? <ErrorNote error={error} /> : <Loading />;
@@ -484,7 +414,7 @@ function AccuracyTab({ storeId, canManage, timezone }: { storeId: string; canMan
             <Field label="Minutes"><input className="input" inputMode="numeric" value={f.minutes} onChange={e => setF(x => ({ ...x, minutes: e.target.value }))} /></Field>
             <Field label={f.kind === 'count' ? 'People counted' : 'Average wait (s)'}><input className="input" inputMode="numeric" value={f.manualValue} onChange={e => setF(x => ({ ...x, manualValue: e.target.value }))} /></Field>
             <button type="button" className="btn-primary" disabled={saver.busy || !f.start || !f.manualValue} onClick={() => saver.run(async () => {
-              await apiPost(`/stores/${storeId}/accuracy`, { kind: f.kind, startAt: new Date(f.start).toISOString(), minutes: Number(f.minutes), manualValue: Number(f.manualValue), notes: f.notes });
+              await apiPost(`/foxtail/stores/${storeId}/accuracy`, { kind: f.kind, startAt: new Date(f.start).toISOString(), minutes: Number(f.minutes), manualValue: Number(f.manualValue), notes: f.notes });
               setF(x => ({ ...x, manualValue: '' })); reload();
             }, 'Check added.')}>Add check</button>
           </div>
@@ -504,7 +434,7 @@ function AccuracyTab({ storeId, canManage, timezone }: { storeId: string; canMan
                   <td className="num">{c.systemValue === null ? '—' : c.kind === 'wait' ? fmtDuration(c.systemValue) : c.systemValue}{c.coveragePct !== null && c.coveragePct < 80 ? <div className="text-[11px] text-warn">only {c.coveragePct}% of samples</div> : null}</td>
                   <td className="num">{c.kind === 'count' ? (c.errorPct === null ? '—' : `${c.errorPct}%`) : (c.errorSeconds === null ? '—' : `${c.errorSeconds}s`)}</td>
                   <td>{c.pass === null ? <Pill tone="neutral">No camera data</Pill> : c.pass ? <Pill tone="ok">Within target</Pill> : <Pill tone="bad">Outside target</Pill>}</td>
-                  {canManage && <td className="text-right"><button type="button" className="btn-ghost btn-sm" onClick={async () => { await apiDelete(`/stores/${storeId}/accuracy/${c.id}`); reload(); }}>Remove</button></td>}
+                  {canManage && <td className="text-right"><button type="button" className="btn-ghost btn-sm" onClick={async () => { await apiDelete(`/foxtail/stores/${storeId}/accuracy/${c.id}`); reload(); }}>Remove</button></td>}
                 </tr>
               ))}
             </tbody>
@@ -514,4 +444,3 @@ function AccuracyTab({ storeId, canManage, timezone }: { storeId: string; canMan
     </div>
   );
 }
-

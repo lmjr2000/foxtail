@@ -1,11 +1,11 @@
 import { useState, type FormEvent } from 'react';
-import { apiPost, type SessionUser } from '../lib/api';
+import { apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { PageHeader } from '../components/ui';
 
 /** Change password. When `forced`, this is the only thing a login with a temporary password can do. */
 export default function Account({ forced = false }: { forced?: boolean }) {
-  const { signIn, signOut, user } = useAuth();
+  const { signOut, user } = useAuth();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [again, setAgain] = useState('');
@@ -14,13 +14,22 @@ export default function Account({ forced = false }: { forced?: boolean }) {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (next.length < 10) { setMsg({ ok: false, text: 'Password must be at least 10 characters.' }); return; }
     if (next !== again) { setMsg({ ok: false, text: 'The two new passwords do not match.' }); return; }
     setBusy(true); setMsg(null);
     try {
-      const r = await apiPost<{ token: string; user: SessionUser }>('/auth/change-password', { currentPassword: current, newPassword: next });
-      signIn(r.token, r.user);
-      setCurrent(''); setNext(''); setAgain('');
-      setMsg({ ok: true, text: 'Password changed.' });
+      // Omni returns {ok, token} - store the new token to keep the session valid
+      const r = await apiPost<{ ok: boolean; token: string }>('/auth/change-password', { currentPassword: current, newPassword: next });
+      if (r.token) {
+        // Re-fetch user info with new token, or just update token and mark password changed
+        const { setToken } = await import('../lib/api');
+        setToken(r.token);
+        // Reload user to get updated mustChangePassword=false
+        window.location.reload();
+      } else {
+        setCurrent(''); setNext(''); setAgain('');
+        setMsg({ ok: true, text: 'Password changed.' });
+      }
     } catch (err) {
       setMsg({ ok: false, text: err instanceof Error ? err.message : 'Could not change the password' });
     } finally { setBusy(false); }

@@ -16,7 +16,7 @@ const GRID: Record<string, string> = { '2': 'grid-cols-1 sm:grid-cols-2', '3': '
 export default function Cameras() {
   const { isCorporate, canManage } = useAuth();
   const [params, setParams] = useSearchParams();
-  const stores = useApi<{ stores: StoreListItem[] }>('/stores', 60_000);
+  const stores = useApi<{ stores: StoreListItem[] }>('/foxtail/stores', 60_000);
   const [q, setQ] = useState('');
   const [offlineOnly, setOfflineOnly] = useState(false);
   const selected = params.get('store');
@@ -77,7 +77,7 @@ export default function Cameras() {
 }
 
 export function StoreCameras({ store, canManage, compact = false }: { store: Pick<StoreListItem, 'id' | 'name'>; canManage: boolean; compact?: boolean }) {
-  const { data, error } = useApi<{ cameras: Camera[]; video: { mode: VideoMode; reason: string | null }; recorderModel: string | null }>(`/stores/${store.id}/cameras`, 60_000);
+  const { data, error } = useApi<{ cameras: Camera[]; video: { mode: VideoMode; reason: string | null }; recorderModel: string | null }>(`/foxtail/stores/${store.id}/cameras`, 60_000);
   const [open, setOpen] = useState<Camera | null>(null);
   const [cols, setCols] = useState('3');
   if (error) return <ErrorNote error={error} />;

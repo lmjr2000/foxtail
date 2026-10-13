@@ -21,7 +21,7 @@ const COLS: Array<{ key: SortKey; label: string; better: 'higher' | 'lower' | nu
   { key: 'conversionPct', label: 'Traffic → sale', better: 'higher' },
 ];
 
-const STATUS_TONE: Record<string, 'ok' | 'warn' | 'bad' | 'neutral'> = { ok: 'ok', stale: 'warn', no_data: 'warn', off: 'neutral', not_set_up: 'neutral' };
+const STATUS_TONE: Record<string, 'ok' | 'warn' | 'bad' | 'neutral' | 'info'> = { ok: 'ok', stale: 'warn', no_data: 'warn', off: 'neutral', not_set_up: 'neutral', demo: 'info' };
 
 function Tile({ label, value, sub }: { label: string; value: string; sub?: ReactNode }) {
   return (
@@ -49,7 +49,7 @@ function cell(s: OverviewStore, k: SortKey): string {
 export default function Overview() {
   const { isCorporate } = useAuth();
   const { range, hours, qs, setRange, setHours } = useRange('today');
-  const { data, error } = useApi<OverviewData>(`/overview?${qs}`, range === 'today' ? 60_000 : 0);
+  const { data, error } = useApi<OverviewData>(`/foxtail/overview?${qs}`, range === 'today' ? 60_000 : 0);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'entered', dir: -1 });
   const [busy, setBusy] = useState<string | null>(null);
   const [dlError, setDlError] = useState<string | null>(null);
@@ -71,7 +71,7 @@ export default function Overview() {
 
   const dl = async (kind: 'pdf' | 'csv') => {
     setBusy(kind); setDlError(null);
-    try { await download(`/reports/all-stores.${kind}?${qs}`, `foxtail-stores.${kind}`); } catch (e) { setDlError(e instanceof Error ? e.message : 'Download failed'); } finally { setBusy(null); }
+    try { await download(`/foxtail/reports/all-stores.${kind}?${qs}`, `foxtail-stores.${kind}`); } catch (e) { setDlError(e instanceof Error ? e.message : 'Download failed'); } finally { setBusy(null); }
   };
 
   const t = data?.totals;
@@ -121,14 +121,16 @@ export default function Overview() {
                     <tbody>
                       {rows.map((s, i) => {
                         const counting = s.status === 'ok' || s.status === 'stale';
+                        const isDemo = s.status === 'demo';
                         return (
-                          <tr key={s.storeId} className="hover:bg-surface-2">
-                            <td className="text-ink-4 tabular-nums">{counting ? i + 1 : ''}</td>
+                          <tr key={s.storeId} className={`hover:bg-surface-2 ${isDemo ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
+                            <td className="text-ink-4 tabular-nums">{counting && !isDemo ? i + 1 : ''}</td>
                             <td className="min-w-[14rem]">
                               <Link to={`/stores/${s.storeId}?${qs}`} className="font-medium text-ink hover:text-accent-ink">{s.name}</Link>
                               <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-ink-4">
                                 {[s.storeNumber ? `#${s.storeNumber}` : null, [s.city, s.state].filter(Boolean).join(', ') || null, isCorporate ? (s.franchiseeName || 'Corporate') : null].filter(Boolean).join(' · ')}
-                                {s.status !== 'ok' && <Pill tone={STATUS_TONE[s.status]}>{s.statusText}</Pill>}
+                                {isDemo && <Pill tone="info">DEMO — not real data</Pill>}
+                                {s.status !== 'ok' && !isDemo && <Pill tone={STATUS_TONE[s.status]}>{s.statusText}</Pill>}
                               </div>
                             </td>
                             {COLS.map(c => (
@@ -147,7 +149,7 @@ export default function Overview() {
 
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
                 <Card title="Worst hours" className="lg:col-span-3" right={<span className="text-xs text-ink-3">Waits over target or counter short-staffed</span>} testId="worst-hours">
-                  {!data.worstHours.length ? <Empty>{t.storesCounting ? 'No hour was over its wait target or short on counter staff.' : 'No counts yet.'}</Empty> : (
+                  {!data.worstHours || data.worstHours.length === 0 ? <Empty>{t.storesCounting ? 'No hour was over its wait target or short on counter staff.' : 'No counts yet.'}</Empty> : (
                     <div className="overflow-x-auto -mx-4">
                       <table className="table">
                         <thead><tr><th>Store</th><th>Hour</th><th className="num">Avg wait</th><th className="num">Avg line</th><th className="num">Counter</th><th>Why</th></tr></thead>
@@ -168,7 +170,7 @@ export default function Overview() {
                   )}
                 </Card>
                 <Card title="Through the day" className="lg:col-span-2" right={<span className="text-xs text-ink-3">All counting stores</span>} testId="by-hour">
-                  {!data.byHour.length ? <Empty>No counts yet.</Empty> : <HourBars hours={data.byHour} />}
+                  {!data.byHour || data.byHour.length === 0 ? <Empty>Hourly breakdown not available.</Empty> : <HourBars hours={data.byHour} />}
                 </Card>
               </div>
             </>

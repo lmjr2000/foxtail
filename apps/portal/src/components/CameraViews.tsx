@@ -27,7 +27,7 @@ export function CameraPicture({ storeId, camera, refreshMs = 30_000, className =
       const r = ref.current.getBoundingClientRect();
       if (r.bottom < 0 || r.top > window.innerHeight) return; // off screen: don't ask the recorder
       try {
-        const url = await fetchImage(`/stores/${storeId}/cameras/${camera.id}/picture.jpg`);
+        const url = camera.thumbnailUrl || await fetchImage(`/foxtail/stores/${storeId}/cameras/${camera.id}/thumbnail`);
         if (!alive) { URL.revokeObjectURL(url); return; }
         if (current) URL.revokeObjectURL(current);
         current = url; setSrc(url); setError(null);
@@ -46,7 +46,7 @@ export function CameraPicture({ storeId, camera, refreshMs = 30_000, className =
   );
 }
 
-/** Live HLS video. Retries while the server is starting the camera's stream. */
+/** Live HLS video via Omni's /hls endpoint. Uses hlsUrl from the camera object. */
 export function LivePlayer({ storeId, camera }: { storeId: string; camera: Camera }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [state, setState] = useState<'loading' | 'playing' | 'error'>('loading');
@@ -54,7 +54,11 @@ export function LivePlayer({ storeId, camera }: { storeId: string; camera: Camer
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    const src = `/api/stores/${storeId}/cameras/${camera.id}/live/index.m3u8`;
+    if (!camera.hlsUrl) {
+      setState('error');
+      setMessage('Live video is not available for this camera.');
+      return;
+    }
     let hls: Hls | null = null;
     let tries = 0, stopped = false, retry = 0;
     const startHls = () => {
@@ -71,7 +75,6 @@ export function LivePlayer({ storeId, camera }: { storeId: string; camera: Camer
         const text = (data.response as { text?: string } | undefined)?.text;
         let reason = '';
         try { reason = text ? JSON.parse(text).message : ''; } catch { /* not JSON */ }
-        // 503 = the stream is still starting; keep trying for ~40 s.
         if ((status === 503 || data.type === Hls.ErrorTypes.NETWORK_ERROR && !status) && tries < 8) {
           tries++; setMessage(reason || 'Starting video…');
           retry = window.setTimeout(startHls, 4000);
@@ -80,13 +83,13 @@ export function LivePlayer({ storeId, camera }: { storeId: string; camera: Camer
         if (data.type === Hls.ErrorTypes.MEDIA_ERROR) { hls?.recoverMediaError(); return; }
         setState('error'); setMessage(reason || 'Live video is not available right now.');
       });
-      hls.loadSource(src);
+      hls.loadSource(camera.hlsUrl!);
       hls.attachMedia(video);
     };
     if (Hls.isSupported()) startHls();
     else { setState('error'); setMessage('This browser cannot play live video. Try Chrome, Edge or Firefox.'); }
     return () => { stopped = true; window.clearTimeout(retry); hls?.destroy(); };
-  }, [storeId, camera.id]);
+  }, [storeId, camera.id, camera.hlsUrl]);
   return (
     <div className="relative bg-black rounded-lg overflow-hidden" style={{ aspectRatio: '16 / 9' }}>
       <video ref={videoRef} className="absolute inset-0 w-full h-full object-contain" muted playsInline autoPlay controls={state === 'playing'} />

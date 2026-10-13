@@ -40,7 +40,7 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [googleId, setGoogleId] = useState<string | null>(null);
 
-  useEffect(() => { apiFetch<{ googleClientId: string | null }>('/auth/config').then(c => setGoogleId(c.googleClientId)).catch(() => {}); }, []);
+  useEffect(() => { apiFetch<{ googleClientId: string | null }>('/auth/providers').then(c => setGoogleId(c.googleClientId)).catch(() => {}); }, []);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();

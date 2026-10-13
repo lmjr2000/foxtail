@@ -1,11 +1,15 @@
 /**
- * Talking to the Foxtail API. The session token lives in localStorage; every call sends it as a
+ * Talking to the Omni Foxtail API. The session token lives in localStorage; every call sends it as a
  * Bearer header. The server decides what each login may see — the portal never filters stores itself.
+ *
+ * The API base URL is configured via VITE_OMNI_API_BASE_URL (defaults to same-origin /api/v1).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { OperatingHours, Role } from '@foxtail/shared';
 
 const TOKEN_KEY = 'foxtail_token';
+
+const API_BASE = import.meta.env.VITE_OMNI_API_BASE_URL?.replace(/\/$/, '') || '/api/v1';
 
 export function getToken(): string | null {
   try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
@@ -26,7 +30,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   const headers: Record<string, string> = { ...(init.headers as Record<string, string> | undefined) };
   if (token) headers.Authorization = `Bearer ${token}`;
   if (init.body && typeof init.body === 'string') headers['Content-Type'] = 'application/json';
-  const res = await fetch(`/api${path}`, { ...init, headers });
+  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
   if (!res.ok) {
     let code = 'ERROR', message = `Request failed (${res.status})`;
     try { const b = await res.json(); code = b.error || code; message = b.message || message; } catch { /* not JSON */ }
@@ -44,7 +48,7 @@ export const apiDelete = <T>(path: string) => apiFetch<T>(path, { method: 'DELET
 
 /** Download a file the API produces (PDF/CSV) using the session header, then save it in the browser. */
 export async function download(path: string, fallbackName: string): Promise<void> {
-  const res = await fetch(`/api${path}`, { headers: { Authorization: `Bearer ${getToken() ?? ''}` } });
+  const res = await fetch(`${API_BASE}${path}`, { headers: { Authorization: `Bearer ${getToken() ?? ''}` } });
   if (!res.ok) {
     let message = `Download failed (${res.status})`;
     try { message = (await res.json()).message || message; } catch { /* binary */ }
@@ -91,30 +95,37 @@ export function useApi<T>(path: string | null, refreshMs = 0) {
 
 // ------------------------------------------------------------------------------------- types
 
-export interface SessionUser { id: string; email: string; name: string; role: Role; franchiseeId: string | null; mustChangePassword: boolean }
+export interface SessionUser {
+  id: string; email: string; name: string; role: Role; franchiseeId: string | null; mustChangePassword: boolean;
+  /** Omni role (if different from Foxtail role) */
+  omniRole?: string;
+}
 
 export interface Store {
   id: string; storeNumber: string | null; name: string; address: string | null; city: string | null; state: string | null; postalCode: string | null;
   timezone: string; openingHours: OperatingHours; franchiseeId: string | null; franchiseeName: string | null;
-  sourceDeviceName?: string | null; recorderModel?: string | null;
 }
 export interface StoreListItem extends Store {
   counting: { areas: number; measurable: number; enabled: boolean; lastSampleAt: string | null };
   cameras: { total: number; online: number; offline: number; statusAt: string | null; video: VideoMode };
 }
 
-/** live = direct recorder (video), pictures = edge agent (latest pictures), none = recorder login not set up yet. */
+/** live = recorder video via Omni HLS, pictures = edge agent snapshots, none = not connected. */
 export type VideoMode = 'live' | 'pictures' | 'none';
 
 export interface Camera {
   id: string; storeId: string; name: string; channel: number; enabled: boolean;
   source: 'manual' | 'ezcloud'; model: string | null; serialNo: string | null;
   status: 'online' | 'offline' | 'unknown'; statusAt: string | null; statusSource: string | null;
+  /** URL to the HLS stream (when video mode is 'live'). Opens directly on Omni. */
+  hlsUrl: string | null;
+  /** URL to the latest thumbnail image. */
+  thumbnailUrl: string | null;
 }
 
 /** Fetch an image the API protects (session header) and return an object URL for <img>. */
 export async function fetchImage(path: string): Promise<string> {
-  const res = await fetch(`/api${path}`, { headers: { Authorization: `Bearer ${getToken() ?? ''}` } });
+  const res = await fetch(`${API_BASE}${path}`, { headers: { Authorization: `Bearer ${getToken() ?? ''}` } });
   if (!res.ok) {
     let message = `No picture (${res.status})`;
     try { message = (await res.json()).message || message; } catch { /* binary */ }
@@ -159,7 +170,7 @@ export interface Insights {
   notes: string[];
 }
 
-export type CountingStatus = 'not_set_up' | 'off' | 'no_data' | 'stale' | 'ok';
+export type CountingStatus = 'not_set_up' | 'off' | 'no_data' | 'stale' | 'ok' | 'demo';
 
 export interface OverviewStore {
   storeId: string; name: string; storeNumber: string | null; city: string | null; state: string | null; franchiseeName: string | null; timezone: string;
@@ -180,3 +191,54 @@ export interface Overview {
 
 export interface Franchisee { id: string; name: string; contactName: string | null; contactEmail: string | null; phone: string | null; storeCount: number; loginCount: number }
 export interface AdminUser { id: string; email: string; name: string; role: Role; franchiseeId: string | null; disabled: boolean; mustChangePassword: boolean; googleLinked: boolean; lastLoginAt: string | null; createdAt: string }
+
+// ------------------------------------------------------------------------------------- security / alerts
+
+/** Omni only uses critical, high, info */
+export type AlertSeverity = 'critical' | 'high' | 'info';
+export type AlertStatus = 'open' | 'acknowledged';
+
+export interface Alert {
+  id: string;
+  siteId: string;
+  storeName: string;
+  severity: AlertSeverity;
+  title: string;
+  createdAt: string;
+  status: AlertStatus;
+  cameraId: string | null;
+  cameraName: string | null;
+}
+
+export interface AlertDetail extends Alert {
+  detail: string | null;
+  /** Snapshot from /foxtail/alerts/{id}/snapshot.jpg (AI snapshots only) */
+  snapshotUrl: string | null;
+  acknowledgedAt: string | null;
+  acknowledgedBy: string | null;
+}
+
+export interface AlertCounts {
+  critical: number;
+  high: number;
+  info: number;
+}
+
+export interface CameraHealth {
+  stores: Array<{
+    siteId: string;
+    name: string;
+    online: number;
+    offline: number;
+    total: number;
+    cameras: Array<{
+      id: string;
+      name: string;
+      channel: number;
+      status: 'online' | 'offline' | 'unknown';
+      statusAt: string | null;
+      lastSeenAt: string | null;
+    }>;
+  }>;
+  totals: { online: number; offline: number };
+}

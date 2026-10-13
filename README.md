@@ -1,38 +1,50 @@
 # Foxtail
 
-Store performance for Foxtail Coffee Co. Foxtail turns the cameras already in each store into
-business numbers: customers entered, line length, wait time, front-counter staffing, and traffic
-compared with register sales.
+Store performance dashboard for Foxtail Coffee Co. This frontend application displays business
+metrics from in-store cameras: customers entered, line length, wait time, front-counter staffing,
+security alerts, and traffic compared with register sales.
 
 - **Corporate**: all stores side by side, totals, worst-performing hours, and all settings.
 - **Franchise owners**: their own stores only, plus report downloads.
 
 Foxtail stores counts only. It keeps no recordings and identifies no one.
 
+## Architecture
+
+This is a **frontend-only** application. It calls the Omni Foxtail API (Eye of Omni's backend)
+for all data. The API contract is documented in `docs/omni-foxtail-api.yaml`.
+
+The portal is built with React 19 + Vite 6 + Tailwind 3 and deployed as a static site.
+
 ## Run it locally
 
-Requires Node 20+. For recorder tests, also install ffmpeg/ffprobe.
+Requires Node 20+.
 
 ```sh
 npm install
-npm run dev            # embedded Postgres + API (:3001) + portal (http://localhost:5173)
-npm run user:create -w @foxtail/api -- --email you@example.com --name "Your Name"
+npm run dev            # Vite dev server at http://localhost:5173
 ```
 
-Sign in with the temporary password it prints; you'll be asked to choose your own. Then:
+Set `VITE_OMNI_API_BASE_URL` in `.env` to point to your Omni backend:
 
-1. Add franchisees, stores and logins.
-2. On each store, connect its recorder and cameras under **Settings**.
-3. Draw the counting areas and turn counting on.
+```sh
+VITE_OMNI_API_BASE_URL=https://omni.example.com/api/v1
+```
 
-Counting also needs `ROBOFLOW_API_KEY` and `PERSON_MODEL_ID` (see `.env.example`).
+## Build for production
+
+```sh
+npm run build          # outputs to apps/portal/dist/
+```
+
+The `Dockerfile` builds an nginx image serving the static files.
 
 ## Checks
 
 ```sh
 npm run typecheck
-npm test               # uses a throwaway embedded Postgres; CI uses a Postgres service
+npm test
 npm run build
 ```
 
-See `CLAUDE.md` for how the parts fit together and the rules the project follows.
+See `CLAUDE.md` for the project structure and rules.

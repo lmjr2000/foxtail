@@ -15,12 +15,12 @@ export default function StoreDetail() {
   const { storeId = '' } = useParams();
   const { isCorporate, canManage } = useAuth();
   const { range, hours, qs, setRange, setHours } = useRange('today');
-  const { data, error } = useApi<Insights>(`/stores/${storeId}/insights?${qs}`, range === 'today' ? 60_000 : 0);
+  const { data, error } = useApi<Insights>(`/foxtail/stores/${storeId}/insights?${qs}`, range === 'today' ? 60_000 : 0);
   const [busy, setBusy] = useState<string | null>(null);
   const [dlError, setDlError] = useState<string | null>(null);
   const dl = async (path: string, name: string) => {
     setBusy(path); setDlError(null);
-    try { await download(`/stores/${storeId}/${path}?${qs}`, name); } catch (e) { setDlError(e instanceof Error ? e.message : 'Download failed'); } finally { setBusy(null); }
+    try { await download(`/foxtail/stores/${storeId}/${path}?${qs}`, name); } catch (e) { setDlError(e instanceof Error ? e.message : 'Download failed'); } finally { setBusy(null); }
   };
 
   const ds = data?.dataStatus;

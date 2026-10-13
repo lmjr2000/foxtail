@@ -16,7 +16,7 @@ interface PosCompare {
 interface UploadResult { saved: number; dryRun: boolean; source: string; warnings: string[]; days: string[]; hours: number; sales: number; transactions: number }
 
 export default function PosSection({ storeId, range, canUpload, timezone }: { storeId: string; range: string; canUpload: boolean; timezone: string }) {
-  const { data, error, reload } = useApi<PosCompare>(`/stores/${storeId}/pos-compare?range=${encodeURIComponent(range)}`);
+  const { data, error, reload } = useApi<PosCompare>(`/foxtail/stores/${storeId}/pos-compare?range=${encodeURIComponent(range)}`);
   const [file, setFile] = useState<{ name: string; text: string } | null>(null);
   const [date, setDate] = useState('');
   const [preview, setPreview] = useState<UploadResult | null>(null);
@@ -28,7 +28,7 @@ export default function PosSection({ storeId, range, canUpload, timezone }: { st
     if (!file) return;
     setBusy(true); setErr(null);
     try {
-      const r = await apiPost<UploadResult>(`/stores/${storeId}/pos-upload`, { csv: file.text, date: date || null, dryRun });
+      const r = await apiPost<UploadResult>(`/foxtail/stores/${storeId}/pos-upload`, { csv: file.text, date: date || null, dryRun });
       if (dryRun) setPreview(r); else { setPreview(null); setFile(null); setOpen(false); reload(); }
     } catch (e) { setErr(e instanceof Error ? e.message : 'Upload failed'); setPreview(null); } finally { setBusy(false); }
   };
@@ -37,7 +37,7 @@ export default function PosSection({ storeId, range, canUpload, timezone }: { st
   return (
     <Card title="Traffic vs register sales" testId="pos"
       right={<>
-        {data && <button type="button" className="btn-ghost btn-sm" onClick={() => download(`/stores/${storeId}/pos-compare.csv?range=${encodeURIComponent(range)}`, 'traffic-vs-sales.csv').catch(e => setErr(e.message))}>CSV</button>}
+        {data && <button type="button" className="btn-ghost btn-sm" onClick={() => download(`/foxtail/stores/${storeId}/pos-compare.csv?range=${encodeURIComponent(range)}`, 'traffic-vs-sales.csv').catch(e => setErr(e.message))}>CSV</button>}
         {canUpload && <button type="button" className="btn-secondary btn-sm" onClick={() => setOpen(o => !o)}>Upload POS export</button>}
       </>}>
       <ErrorNote error={error || err} />
@@ -97,7 +97,7 @@ export default function PosSection({ storeId, range, canUpload, timezone }: { st
             {data.uploads.map(u => (
               <li key={u.date} className="flex items-center justify-between gap-2 py-1.5">
                 <span className="text-ink-2">{u.date} · {u.hours} h · {fmtMoney(u.sales)} · {fmtNum(u.transactions)} tx · {u.source}</span>
-                <button type="button" className="btn-ghost btn-sm text-bad" onClick={async () => { if (confirm(`Remove POS data for ${u.date}?`)) { await apiDelete(`/stores/${storeId}/pos/${u.date}`); reload(); } }}>Remove</button>
+                <button type="button" className="btn-ghost btn-sm text-bad" onClick={async () => { if (confirm(`Remove POS data for ${u.date}?`)) { await apiDelete(`/foxtail/stores/${storeId}/pos/${u.date}`); reload(); } }}>Remove</button>
               </li>
             ))}
           </ul>

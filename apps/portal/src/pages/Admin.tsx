@@ -1,4 +1,4 @@
-/** Corporate admin: logins, franchisees and the change log. */
+/** Corporate admin: logins, franchisees and recent activity. */
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ROLE_LABELS, ROLES, type Role } from '@foxtail/shared';
@@ -7,14 +7,14 @@ import { useAuth } from '../lib/auth';
 import { fmtAgo } from '../lib/format';
 import { Card, Empty, ErrorNote, Field, Loading, Modal, PageHeader, Pill } from '../components/ui';
 
-const TABS = [{ key: 'logins', label: 'Logins' }, { key: 'franchisees', label: 'Franchisees' }, { key: 'import', label: 'Import cameras' }, { key: 'activity', label: 'Change log' }] as const;
+const TABS = [{ key: 'logins', label: 'Logins' }, { key: 'franchisees', label: 'Franchisees' }, { key: 'activity', label: 'Audit log' }] as const;
 
 export default function Admin() {
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') || 'logins';
   return (
     <div className="space-y-4">
-      <PageHeader title="Admin" subtitle="Who can sign in, which franchisee they belong to, and what changed." />
+      <PageHeader title="Admin" subtitle="Who can sign in, which franchisee they belong to, and recent activity." />
       <div className="flex gap-1 border-b border-line" role="tablist">
         {TABS.map(t => (
           <button key={t.key} type="button" role="tab" aria-selected={tab === t.key}
@@ -24,7 +24,6 @@ export default function Admin() {
       </div>
       {tab === 'logins' && <Logins />}
       {tab === 'franchisees' && <Franchisees />}
-      {tab === 'import' && <ImportCameras />}
       {tab === 'activity' && <Activity />}
     </div>
   );
@@ -47,8 +46,8 @@ function OneTimePassword({ email, password, onClose }: { email: string; password
 
 function Logins() {
   const { user: me } = useAuth();
-  const users = useApi<{ users: AdminUser[] }>('/users');
-  const fr = useApi<{ franchisees: Franchisee[] }>('/franchisees');
+  const users = useApi<{ users: AdminUser[] }>('/foxtail/users');
+  const fr = useApi<{ franchisees: Franchisee[] }>('/foxtail/franchisees');
   const [edit, setEdit] = useState<AdminUser | 'new' | null>(null);
   const [otp, setOtp] = useState<{ email: string; password: string } | null>(null);
   const frName = new Map((fr.data?.franchisees || []).map(f => [f.id, f.name]));
@@ -89,13 +88,13 @@ function LoginEditor({ user, franchisees, onClose, onSaved }: { user: AdminUser 
   const go = async (fn: () => Promise<void>) => { setBusy(true); setErr(null); try { await fn(); } catch (e) { setErr(e instanceof Error ? e.message : 'Could not save'); } finally { setBusy(false); } };
   const save = () => go(async () => {
     const body = { name: f.name, role: f.role, franchiseeId: f.role === 'franchise_owner' ? f.franchiseeId || null : null };
-    if (user) { await apiPatch(`/users/${user.id}`, { ...body, disabled: f.disabled }); onSaved(null, user.email); }
-    else { const r = await apiPost<{ temporaryPassword: string }>('/users', { ...body, email: f.email }); onSaved(r.temporaryPassword, f.email); }
+    if (user) { await apiPatch(`/foxtail/users/${user.id}`, { ...body, disabled: f.disabled }); onSaved(null, user.email); }
+    else { const r = await apiPost<{ temporaryPassword: string }>('/foxtail/users', { ...body, email: f.email }); onSaved(r.temporaryPassword, f.email); }
   });
   return (
     <Modal title={user ? `Edit ${user.email}` : 'Add login'} open onClose={onClose}
       footer={<>
-        {user && <button type="button" className="btn-ghost mr-auto" disabled={busy} onClick={() => go(async () => { if (!confirm('Reset this password? Their current sessions end.')) return; const r = await apiPost<{ temporaryPassword: string }>(`/users/${user.id}/reset-password`, {}); onSaved(r.temporaryPassword, user.email); })}>Reset password</button>}
+        {user && <button type="button" className="btn-ghost mr-auto" disabled={busy} onClick={() => go(async () => { if (!confirm('Reset this password? Their current sessions end.')) return; const r = await apiPost<{ temporaryPassword: string }>(`/foxtail/users/${user.id}/reset-password`, {}); onSaved(r.temporaryPassword, user.email); })}>Reset password</button>}
         <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
         <button type="button" className="btn-primary" disabled={busy || (!user && !f.email) || (f.role === 'franchise_owner' && !f.franchiseeId)} onClick={save}>{busy ? 'Saving…' : user ? 'Save' : 'Create login'}</button>
       </>}>
@@ -124,7 +123,7 @@ function LoginEditor({ user, franchisees, onClose, onSaved }: { user: AdminUser 
 }
 
 function Franchisees() {
-  const fr = useApi<{ franchisees: Franchisee[] }>('/franchisees');
+  const fr = useApi<{ franchisees: Franchisee[] }>('/foxtail/franchisees');
   const [edit, setEdit] = useState<Franchisee | 'new' | null>(null);
   return (
     <>
@@ -160,9 +159,9 @@ function FranchiseeEditor({ f, onClose, onSaved }: { f: Franchisee | null; onClo
   return (
     <Modal title={f ? `Edit ${f.name}` : 'Add franchisee'} open onClose={onClose}
       footer={<>
-        {f && <button type="button" className="btn-ghost text-bad mr-auto" disabled={busy} onClick={() => confirm(`Delete ${f.name}?`) && go(() => apiDelete(`/franchisees/${f.id}`))}>Delete</button>}
+        {f && <button type="button" className="btn-ghost text-bad mr-auto" disabled={busy} onClick={() => confirm(`Delete ${f.name}?`) && go(() => apiDelete(`/foxtail/franchisees/${f.id}`))}>Delete</button>}
         <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
-        <button type="button" className="btn-primary" disabled={busy || !v.name.trim()} onClick={() => go(() => (f ? apiPatch(`/franchisees/${f.id}`, v) : apiPost('/franchisees', v)))}>{busy ? 'Saving…' : 'Save'}</button>
+        <button type="button" className="btn-primary" disabled={busy || !v.name.trim()} onClick={() => go(() => (f ? apiPatch(`/foxtail/franchisees/${f.id}`, v) : apiPost('/foxtail/franchisees', v)))}>{busy ? 'Saving…' : 'Save'}</button>
       </>}>
       <div className="space-y-3">
         <ErrorNote error={err} />
@@ -178,11 +177,11 @@ function FranchiseeEditor({ f, onClose, onSaved }: { f: Franchisee | null; onClo
 }
 
 function Activity() {
-  const { data, error } = useApi<{ entries: Array<{ at: string; user: string | null; action: string; store: string | null; detail: Record<string, unknown> }> }>('/audit?limit=200');
+  const { data, error } = useApi<{ entries: Array<{ at: string; user: string | null; action: string; store: string | null; detail: Record<string, unknown> }> }>('/foxtail/audit?limit=200');
   if (!data) return error ? <ErrorNote error={error} /> : <Loading />;
   return (
-    <Card title="Recent changes">
-      {data.entries.length === 0 ? <Empty>No changes yet.</Empty> : (
+    <Card title="Audit log">
+      {data.entries.length === 0 ? <Empty>No changes recorded yet.</Empty> : (
         <div className="overflow-x-auto -mx-4">
           <table className="table">
             <thead><tr><th>When</th><th>Who</th><th>What</th><th>Store</th></tr></thead>
@@ -200,68 +199,5 @@ function Activity() {
         </div>
       )}
     </Card>
-  );
-}
-
-interface ImportResult {
-  dryRun: boolean; storesCreated: number; storesUpdated: number; camerasCreated: number; camerasUpdated: number; online: number; offline: number; rowsSkipped: number; errors: string[];
-  stores: Array<{ name: string; device: string; model: string; cameras: number; online: number; offline: number; action: 'create' | 'update' | 'skip-archived'; storeId: string | null; owner: string | null }>;
-}
-
-/** Real stores + cameras from the EZCloud "Channel Management" export (the file Eye of Omni imported). */
-function ImportCameras() {
-  const [file, setFile] = useState<{ name: string; text: string } | null>(null);
-  const [preview, setPreview] = useState<ImportResult | null>(null);
-  const [done, setDone] = useState<ImportResult | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const send = async (dryRun: boolean) => {
-    if (!file) return;
-    setBusy(true); setErr(null);
-    try {
-      const r = await apiPost<ImportResult>('/imports/ezcloud-channels', { csv: file.text, dryRun });
-      if (dryRun) setPreview(r); else { setDone(r); setPreview(null); setFile(null); }
-    } catch (e) { setErr(e instanceof Error ? e.message : 'Import failed'); } finally { setBusy(false); }
-  };
-  const r = done || preview;
-  return (
-    <div className="space-y-4">
-      <Card title="Import stores and cameras from EZCloud">
-        <div className="space-y-3 text-sm">
-          <p className="text-ink-2">In the EZCloud console, open <b>Channel Management</b> and export the channel list (CSV). This is the same file Eye of Omni imported for the “Foxtail / …” locations. Each recorder (Device) becomes a store and each channel a camera, with its online/offline status.</p>
-          <p className="text-xs text-ink-3">Importing a newer export later updates names and status; it never creates duplicates. New stores start without a franchisee — assign them on the Stores page. Adding a store's recorder address and login turns on live video and counting.</p>
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="block"><span className="input-label">Channel Management export</span>
-              <input type="file" accept=".csv,.txt,text/csv" className="text-sm" onChange={async e => { const f = e.target.files?.[0]; setPreview(null); setDone(null); setFile(f ? { name: f.name, text: await f.text() } : null); }} />
-            </label>
-            <button type="button" className="btn-secondary" disabled={!file || busy} onClick={() => send(true)}>Check file</button>
-            <button type="button" className="btn-primary" disabled={!preview || busy} onClick={() => send(false)}>{busy ? 'Working…' : preview ? `Import ${preview.stores.filter(x => x.action !== 'skip-archived').length} stores` : 'Import'}</button>
-          </div>
-          <ErrorNote error={err} />
-          {done && <div className="callout callout-ok">Imported: {done.storesCreated} new stores, {done.storesUpdated} updated, {done.camerasCreated} new cameras, {done.camerasUpdated} updated.</div>}
-        </div>
-      </Card>
-      {r && (
-        <Card title={r.dryRun ? 'What this file will do' : 'Imported'} right={<span className="text-xs text-ink-3">{r.online} cameras online · {r.offline} offline{r.rowsSkipped ? ` · ${r.rowsSkipped} rows skipped` : ''}</span>}>
-          <div className="overflow-x-auto -mx-4">
-            <table className="table">
-              <thead><tr><th>Store</th><th>Recorder</th><th className="num">Cameras</th><th className="num">Online</th><th className="num">Offline</th><th>EZCloud owner</th><th /></tr></thead>
-              <tbody>
-                {r.stores.map(s => (
-                  <tr key={s.device}>
-                    <td className="text-ink">{s.name}</td>
-                    <td className="text-ink-3">{s.model || '—'}</td>
-                    <td className="num">{s.cameras}</td><td className="num text-ok">{s.online}</td><td className={`num ${s.offline ? 'text-bad' : ''}`}>{s.offline}</td>
-                    <td className="text-ink-3">{s.owner || '—'}</td>
-                    <td>{s.action === 'create' ? <Pill tone="accent">New</Pill> : s.action === 'update' ? <Pill tone="neutral">Update</Pill> : <Pill tone="warn" title="This store was archived in Foxtail">Archived, skipped</Pill>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {r.errors.length > 0 && <details className="mt-2 text-xs text-ink-3"><summary className="cursor-pointer">{r.errors.length} rows could not be read</summary><ul className="mt-1 list-disc pl-5">{r.errors.map(e => <li key={e}>{e}</li>)}</ul></details>}
-        </Card>
-      )}
-    </div>
   );
 }
