@@ -32,6 +32,11 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col">
+      {user?.demo && (
+        <div className="bg-rust text-white text-xs sm:text-sm px-4 py-1.5 text-center" role="note" data-testid="demo-banner">
+          <b>Demo</b> · example stores and made-up numbers{isCorporate ? ' · look-only: settings can be viewed but not changed' : ''} · <button type="button" className="underline" onClick={signOut}>switch view</button>
+        </div>
+      )}
       <header className="bg-brand border-b border-black/20">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-4">
           <Logo />
@@ -51,9 +56,9 @@ export default function Layout({ children }: { children: ReactNode }) {
                     <div className="text-sm text-ink truncate">{user?.email}</div>
                     <div className="text-xs text-ink-3">{user ? ROLE_LABELS[user.role] : ''}</div>
                   </div>
-                  <Link role="menuitem" to="/account" className="block px-3 py-2 text-sm text-ink hover:bg-surface-2" onClick={() => setMenu(false)}>Change password</Link>
+                  {!user?.demo && <Link role="menuitem" to="/account" className="block px-3 py-2 text-sm text-ink hover:bg-surface-2" onClick={() => setMenu(false)}>Change password</Link>}
                   <button role="menuitem" type="button" className="w-full text-left px-3 py-2 text-sm text-ink hover:bg-surface-2" onClick={() => { toggleTheme(); setMenu(false); }}>Light / dark</button>
-                  <button role="menuitem" type="button" className="w-full text-left px-3 py-2 text-sm text-ink hover:bg-surface-2" onClick={signOut}>Sign out</button>
+                  <button role="menuitem" type="button" className="w-full text-left px-3 py-2 text-sm text-ink hover:bg-surface-2" onClick={signOut}>{user?.demo ? 'Leave demo' : 'Sign out'}</button>
                 </div>
               </>
             )}

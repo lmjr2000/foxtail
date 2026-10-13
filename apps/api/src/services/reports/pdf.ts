@@ -2,7 +2,10 @@
  * A tiny dependency-free PDF writer (carried over from Eye of Omni's report export): Helvetica text,
  * filled rectangles and lines on US Letter pages. Enough for clean tabular reports.
  */
+import { isDemoMode } from '../../config.js';
+
 export const W = 612, H = 792, M = 44;
+const DEMO_TEXT = 'DEMO – example stores and made-up numbers, not real Foxtail data';
 
 const WIN: Record<string, number> = { '€': 0x80, '…': 0x85, '‘': 0x91, '’': 0x92, '“': 0x93, '”': 0x94, '•': 0x95, '–': 0x96, '—': 0x97, '·': 0xb7, '°': 0xb0, '×': 0xd7 };
 
@@ -120,12 +123,17 @@ export class Doc {
     this.p.text(M, H - 42, title, 18, true, [1, 1, 1]);
     this.p.text(M, H - 64, subtitle, 11, false, [0.41, 0.79, 0.8]);
     this.y = H - 112;
+    if (isDemoMode()) {
+      this.p.rect(M, this.y - 8, W - 2 * M, 22, [0.62, 0.23, 0.11]);
+      this.p.text(M + 10, this.y - 1, DEMO_TEXT, 10, true, [1, 1, 1]);
+      this.y -= 32;
+    }
   }
 
   footer(text: string) {
     this.pages.forEach((pg, i) => {
       pg.line(M, M + 18, W - M, M + 18);
-      pg.text(M, M + 6, `${text} · page ${i + 1} of ${this.pages.length}`, 7.5, false, GREY);
+      pg.text(M, M + 6, `${text} · page ${i + 1} of ${this.pages.length}${isDemoMode() ? ' · DEMO, example data' : ''}`, 7.5, false, GREY);
     });
   }
 
@@ -165,7 +173,7 @@ export function csvCell(v: unknown): string {
 }
 export const csvRow = (...cells: unknown[]) => cells.map(csvCell).join(',');
 /** BOM + CRLF so Excel opens it with the right encoding. */
-export const csvFile = (lines: string[]) => '﻿' + lines.join('\r\n') + '\r\n';
+export const csvFile = (lines: string[]) => '﻿' + (isDemoMode() ? [csvRow(DEMO_TEXT), ...lines] : lines).join('\r\n') + '\r\n';
 
 export function fmtLocal(iso: string | Date, tz: string): string {
   return new Date(iso).toLocaleString('en-US', { timeZone: tz, month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });

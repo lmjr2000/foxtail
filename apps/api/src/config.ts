@@ -19,3 +19,11 @@ export function secretBoxKey(): string {
 }
 
 export const SESSION_HOURS = Number(process.env.SESSION_HOURS || 12);
+
+/**
+ * Demo site: example stores with generated numbers and one-click, look-only logins on the sign-in
+ * page. Only for a separate demo deployment with its own database — never point it at real stores.
+ */
+export function isDemoMode(): boolean {
+  return process.env.DEMO_MODE === 'true';
+}

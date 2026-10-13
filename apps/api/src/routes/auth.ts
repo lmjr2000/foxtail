@@ -2,6 +2,7 @@
  * POST /api/auth/login            { email, password } -> { token, user }
  * POST /api/auth/google           { credential } -> { token, user }   (only when GOOGLE_CLIENT_ID is set; existing logins only)
  * GET  /api/auth/config           what the sign-in page should offer
+ * POST /api/auth/demo             { as: 'corporate' | 'owner' } -> { token, user }   (DEMO_MODE only; look-only logins)
  * GET  /api/auth/me               the signed-in user (allowed while a password change is pending)
  * POST /api/auth/change-password  { currentPassword, newPassword } -> { token, user }
  */
@@ -12,6 +13,8 @@ import { q } from '../db/pool.js';
 import { burnPasswordCheck, checkPassword, getUser, getUserRowByEmail, passwordProblem, rowToUser, setPassword, type User } from '../services/users.js';
 import { googleClientId, verifyGoogleCredential } from '../services/google-auth.js';
 import { audit } from '../services/audit.js';
+import { isDemoMode } from '../config.js';
+import { DEMO_LOGINS, isDemoUser } from '../services/demo.js';
 
 const router = Router();
 
@@ -34,7 +37,7 @@ function recordFailure(key: string) {
 export function resetLoginLimits(): void { failures.clear(); }
 
 export function publicUser(u: User) {
-  return { id: u.id, email: u.email, name: u.name, role: u.role, franchiseeId: u.franchiseeId, mustChangePassword: u.mustChangePassword };
+  return { id: u.id, email: u.email, name: u.name, role: u.role, franchiseeId: u.franchiseeId, mustChangePassword: u.mustChangePassword, demo: isDemoUser(u.id) };
 }
 
 async function sessionFor(user: User) {
@@ -60,7 +63,16 @@ router.post('/login', async (req, res) => {
 });
 
 router.get('/config', (_req, res) => {
-  res.json({ googleClientId: googleClientId() });
+  res.json({ googleClientId: googleClientId(), demo: isDemoMode() });
+});
+
+// Demo site only: one click in, as a look-only corporate login or as one franchise owner.
+router.post('/demo', async (req, res) => {
+  if (!isDemoMode()) throw new HttpError(404, 'NOT_FOUND', 'Not found');
+  const which = req.body?.as === 'owner' ? DEMO_LOGINS.owner : DEMO_LOGINS.corporate;
+  const user = await getUser(which.id);
+  if (!user || user.disabled) throw unauthorized('The demo is not available right now.');
+  res.json(await sessionFor(user));
 });
 
 router.post('/google', async (req, res) => {
@@ -87,6 +99,7 @@ router.get('/me', authenticate, (req, res) => {
 
 router.post('/change-password', authenticate, async (req, res) => {
   const user = req.auth!.user;
+  if (isDemoUser(user.id)) throw new HttpError(403, 'FORBIDDEN', 'Demo logins have no password to change.');
   const row = await getUserRowByEmail(user.email);
   const current = typeof req.body?.currentPassword === 'string' ? req.body.currentPassword : '';
   const next = req.body?.newPassword;

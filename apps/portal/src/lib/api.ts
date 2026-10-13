@@ -91,7 +91,7 @@ export function useApi<T>(path: string | null, refreshMs = 0) {
 
 // ------------------------------------------------------------------------------------- types
 
-export interface SessionUser { id: string; email: string; name: string; role: Role; franchiseeId: string | null; mustChangePassword: boolean }
+export interface SessionUser { id: string; email: string; name: string; role: Role; franchiseeId: string | null; mustChangePassword: boolean; demo?: boolean }
 
 export interface Store {
   id: string; storeNumber: string | null; name: string; address: string | null; city: string | null; state: string | null; postalCode: string | null;
