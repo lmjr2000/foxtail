@@ -7,7 +7,7 @@ import { useAuth } from '../lib/auth';
 import { fmtAgo } from '../lib/format';
 import { Card, Empty, ErrorNote, Field, Loading, Modal, PageHeader, Pill } from '../components/ui';
 
-const TABS = [{ key: 'logins', label: 'Logins' }, { key: 'franchisees', label: 'Franchisees' }, { key: 'activity', label: 'Recent activity' }] as const;
+const TABS = [{ key: 'logins', label: 'Logins' }, { key: 'franchisees', label: 'Franchisees' }, { key: 'activity', label: 'Audit log' }] as const;
 
 export default function Admin() {
   const [params, setParams] = useSearchParams();
@@ -180,8 +180,8 @@ function Activity() {
   const { data, error } = useApi<{ entries: Array<{ at: string; user: string | null; action: string; store: string | null; detail: Record<string, unknown> }> }>('/foxtail/audit?limit=200');
   if (!data) return error ? <ErrorNote error={error} /> : <Loading />;
   return (
-    <Card title="Recent activity" right={<span className="text-xs text-ink-3">In-memory log since last restart</span>}>
-      {data.entries.length === 0 ? <Empty>No recent activity recorded.</Empty> : (
+    <Card title="Audit log">
+      {data.entries.length === 0 ? <Empty>No changes recorded yet.</Empty> : (
         <div className="overflow-x-auto -mx-4">
           <table className="table">
             <thead><tr><th>When</th><th>Who</th><th>What</th><th>Store</th></tr></thead>
