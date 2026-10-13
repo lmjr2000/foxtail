@@ -1,5 +1,33 @@
 /** Small shared building blocks (tokens only, light/dark safe). */
-import { useEffect, type ReactNode } from 'react';
+import { Component, useEffect, type ReactNode, type ErrorInfo } from 'react';
+
+interface ErrorBoundaryProps { children: ReactNode; }
+interface ErrorBoundaryState { error: Error | null; }
+
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { error: null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error, info: ErrorInfo) { console.error('React error boundary caught:', error, info.componentStack); }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-surface-1 p-4">
+          <div className="card max-w-md w-full p-6 text-center">
+            <div className="text-4xl mb-4">⚠️</div>
+            <h1 className="text-xl font-semibold text-ink mb-2">Something went wrong</h1>
+            <p className="text-ink-3 mb-4">The app ran into an error. Try refreshing the page.</p>
+            <button type="button" className="btn-primary" onClick={() => window.location.reload()}>Refresh</button>
+            <details className="mt-4 text-left text-xs text-ink-4">
+              <summary className="cursor-pointer">Error details</summary>
+              <pre className="mt-2 p-2 bg-surface-2 rounded overflow-auto max-h-40">{this.state.error.message}{'\n'}{this.state.error.stack}</pre>
+            </details>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export function PageHeader({ title, subtitle, actions, crumbs }: { title: string; subtitle?: ReactNode; actions?: ReactNode; crumbs?: ReactNode }) {
   return (
