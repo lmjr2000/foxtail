@@ -20,7 +20,11 @@ export function setToken(t: string | null): void {
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); }
+  get isDemoReadOnly(): boolean { return this.status === 403 && this.code === 'DEMO_READ_ONLY'; }
 }
+
+/** User-friendly message for demo read-only errors. */
+export function demoReadOnlyMessage(): string { return 'Demo is read-only. Sign in with a real account to make changes.'; }
 
 let onUnauthorized: (() => void) | null = null;
 export function setUnauthorizedHandler(fn: () => void) { onUnauthorized = fn; }

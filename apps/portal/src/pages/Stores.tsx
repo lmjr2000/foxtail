@@ -14,7 +14,7 @@ function countingBadge(s: StoreListItem) {
 }
 
 export default function Stores() {
-  const { isCorporate, canManage } = useAuth();
+  const { isCorporate, canManage, isDemo } = useAuth();
   const { data, error, reload } = useApi<{ stores: StoreListItem[] }>('/foxtail/stores');
   const [q, setQ] = useState('');
   const [adding, setAdding] = useState(false);
@@ -26,7 +26,7 @@ export default function Stores() {
   return (
     <div className="space-y-5">
       <PageHeader title="Stores" subtitle={data ? `${data.stores.length} store${data.stores.length === 1 ? '' : 's'}` : undefined}
-        actions={canManage && <button type="button" className="btn-primary" onClick={() => setAdding(true)}>Add store</button>} />
+        actions={canManage && !isDemo && <button type="button" className="btn-primary" onClick={() => setAdding(true)}>Add store</button>} />
       <ErrorNote error={error} />
       {!data && !error && <Loading />}
       {data && (data.stores.length === 0 ? <Empty>{canManage ? 'No stores yet. Add the first one.' : 'No stores are assigned to your login yet.'}</Empty> : (
@@ -45,7 +45,7 @@ export default function Stores() {
                     <td>{countingBadge(s)}</td>
                     <td className="text-right whitespace-nowrap">
                       <Link to={`/stores/${s.id}`} className="btn-ghost btn-sm">Dashboard</Link>
-                      {isCorporate && <Link to={`/stores/${s.id}/settings`} className="btn-ghost btn-sm">Settings</Link>}
+                      {isCorporate && !isDemo && <Link to={`/stores/${s.id}/settings`} className="btn-ghost btn-sm">Settings</Link>}
                     </td>
                   </tr>
                 ))}

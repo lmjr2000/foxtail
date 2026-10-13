@@ -14,7 +14,7 @@ import { Empty, ErrorNote, Loading, PageHeader } from '../components/ui';
 const GRID: Record<string, string> = { '2': 'grid-cols-1 sm:grid-cols-2', '3': 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3', '4': 'grid-cols-2 lg:grid-cols-4' };
 
 export default function Cameras() {
-  const { isCorporate, canManage } = useAuth();
+  const { isCorporate, canManage, isDemo } = useAuth();
   const [params, setParams] = useSearchParams();
   const stores = useApi<{ stores: StoreListItem[] }>('/foxtail/stores', 60_000);
   const [q, setQ] = useState('');
@@ -39,11 +39,11 @@ export default function Cameras() {
   return (
     <div className="space-y-4">
       <PageHeader title="Cameras" subtitle={stores.data ? `${all.length} location${all.length === 1 ? '' : 's'} · ${totals.cams} cameras · ${totals.on} online · ${totals.off} offline` : undefined}
-        actions={canManage && <Link to="/admin?tab=import" className="btn-secondary">Import cameras</Link>} />
+        actions={canManage && !isDemo && <Link to="/admin?tab=import" className="btn-secondary">Import cameras</Link>} />
       <ErrorNote error={stores.error} />
       {!stores.data && !stores.error && <Loading />}
       {stores.data && (all.length === 0 ? (
-        <Empty>{canManage ? <>No locations yet. <Link className="text-accent-ink underline" to="/admin?tab=import">Import the EZCloud camera export</Link> to add every store and camera.</> : 'No locations are assigned to your login yet.'}</Empty>
+        <Empty>{canManage && !isDemo ? <>No locations yet. <Link className="text-accent-ink underline" to="/admin?tab=import">Import the EZCloud camera export</Link> to add every store and camera.</> : 'No locations are assigned to your login yet.'}</Empty>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[20rem_1fr] gap-4 items-start">
           <aside className="card overflow-hidden lg:sticky lg:top-4">
@@ -77,6 +77,7 @@ export default function Cameras() {
 }
 
 export function StoreCameras({ store, canManage, compact = false }: { store: Pick<StoreListItem, 'id' | 'name'>; canManage: boolean; compact?: boolean }) {
+  const { isDemo } = useAuth();
   const { data, error } = useApi<{ cameras: Camera[]; video: { mode: VideoMode; reason: string | null }; recorderModel: string | null }>(`/foxtail/stores/${store.id}/cameras`, 60_000);
   const [open, setOpen] = useState<Camera | null>(null);
   const [cols, setCols] = useState('3');
@@ -103,7 +104,7 @@ export function StoreCameras({ store, canManage, compact = false }: { store: Pic
       {data.video.mode !== 'live' && (
         <div className="callout callout-info text-sm flex flex-wrap items-center justify-between gap-2">
           <span>{data.video.mode === 'pictures' ? data.video.reason : `Camera status is shown below. ${data.video.reason}`}</span>
-          {canManage && data.video.mode === 'none' && <Link to={`/stores/${store.id}/settings?tab=recorder`} className="btn-secondary btn-sm">Connect recorder</Link>}
+          {canManage && !isDemo && data.video.mode === 'none' && <Link to={`/stores/${store.id}/settings?tab=recorder`} className="btn-secondary btn-sm">Connect recorder</Link>}
         </div>
       )}
       {cams.length === 0 ? <Empty>No cameras at this location yet.</Empty> : (
