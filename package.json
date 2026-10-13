@@ -1,0 +1,35 @@
+{
+  "name": "foxtail",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Foxtail Coffee store performance dashboard: traffic, lines, waits and staffing from in-store cameras.",
+  "workspaces": [
+    "packages/shared",
+    "apps/api",
+    "apps/portal",
+    "apps/edge-agent"
+  ],
+  "scripts": {
+    "postinstall": "npm run build -w @foxtail/shared",
+    "dev": "node scripts/dev.mjs",
+    "db:start": "node scripts/dev-db.mjs",
+    "build": "npm run build -w @foxtail/shared && npm run build -w @foxtail/api && npm run build -w @foxtail/portal && npm run build -w @foxtail/edge-agent",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "start": "node apps/api/dist/index.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^5.9.3",
+    "embedded-postgres": "17.10.0-beta.17",
+    "pg": "^8.23.1"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "esbuild@0.25.12": true,
+    "@embedded-postgres/windows-x64@17.10.0-beta.17": true
+  }
+}
