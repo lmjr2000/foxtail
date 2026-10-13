@@ -53,7 +53,7 @@ export default function StoreDetail() {
             <div className="callout callout-info">Counting areas are drawn, but counting is turned off for this store.</div>
           ) : !ds.hasData ? (
             <div className="callout callout-info">No camera counts for this store in this period{range === 'today' ? ' yet' : ''}.</div>
-          ) : ds.samplingEnabled && range === 'today' && !ds.fresh ? (
+          ) : ds.samplingEnabled && ds.live && ds.openNow && !ds.fresh ? (
             <div className="callout callout-warn">No new camera counts in the last few minutes. The numbers below are real up to {fmtAgo(ds.lastRoundAt)}.</div>
           ) : null}
 

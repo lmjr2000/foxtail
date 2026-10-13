@@ -65,7 +65,7 @@ function statusOf(res: InsightsResult): CountingStatus {
   if (!res.dataStatus.samplingEnabled && !res.dataStatus.hasData) return 'off';
   if (!res.dataStatus.hasData) return 'no_data';
   // Today, counting on, but nothing new for a few rounds: the numbers so far are real, but say so.
-  if (res.dataStatus.samplingEnabled && new Date(res.range.end).getTime() > Date.now() - 120_000 && !res.dataStatus.fresh) return 'stale';
+  if (res.dataStatus.samplingEnabled && res.dataStatus.live && res.dataStatus.openNow && !res.dataStatus.fresh) return 'stale';
   return 'ok';
 }
 

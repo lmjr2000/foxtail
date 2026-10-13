@@ -119,7 +119,7 @@ export interface Insights {
   timezone: string;
   range: { start: string; end: string; label: string; singleDay: boolean };
   compare: { start: string; end: string; label: string } | null;
-  dataStatus: { configured: boolean; zonesTotal: number; zonesMeasurable: number; samplingEnabled: boolean; rounds: number; lastRoundAt: string | null; fresh: boolean; hasData: boolean; live: boolean };
+  dataStatus: { configured: boolean; zonesTotal: number; zonesMeasurable: number; samplingEnabled: boolean; rounds: number; lastRoundAt: string | null; fresh: boolean; hasData: boolean; live: boolean; openNow: boolean };
   kpis: MetricValue[];
   metrics: Record<string, MetricValue>;
   chart: { granularity: 'hour' | 'day'; buckets: Bucket[]; has: { entered: boolean; occupancy: boolean; wait: boolean }; waitLabel: string; needs: string | null };

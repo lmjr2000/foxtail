@@ -11,7 +11,7 @@ import {
   type FlowStageValue, type CoverageZone, type UtilZone,
 } from './engine.js';
 import { runRules, peakWindows, type HourValue, type Moment, type Insight, type Recommendation } from './rules.js';
-import { hourLabel, tzParts, zonedToUtc } from './time.js';
+import { hourLabel, isOpenAt, tzParts, zonedToUtc } from './time.js';
 
 export interface InsightsResult {
   generatedAt: string;
@@ -23,6 +23,8 @@ export interface InsightsResult {
     rounds: number; lastRoundAt: string | null; fresh: boolean; hasData: boolean;
     /** The period runs up to now ("today"). Past periods show end-of-period values instead of "now". */
     live: boolean;
+    /** The store is inside its opening hours right now. */
+    openNow: boolean;
   };
   kpis: MetricValue[];
   metrics: Record<string, MetricValue>;
@@ -322,7 +324,7 @@ export function computeInsights(input: EngineInput): InsightsResult {
     compare: input.compare ? { start: input.compare.start.toISOString(), end: input.compare.end.toISOString(), label: input.compare.label } : null,
     dataStatus: {
       configured: cfg.configured, zonesTotal: input.zones.length, zonesMeasurable: ctx.zones.length, samplingEnabled: cfg.samplingEnabled,
-      rounds: ctx.rounds.length, lastRoundAt: ctx.lastRoundAt?.toISOString() ?? null, fresh: ctx.fresh, hasData: ctx.rounds.length > 0, live: ctx.live,
+      rounds: ctx.rounds.length, lastRoundAt: ctx.lastRoundAt?.toISOString() ?? null, fresh: ctx.fresh, hasData: ctx.rounds.length > 0, live: ctx.live, openNow: isOpenAt(input.now, tz, cfg.operatingHours),
     },
     kpis,
     metrics,
