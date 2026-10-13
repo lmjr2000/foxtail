@@ -8,11 +8,8 @@ no alerts, no monitoring desk, no recordings kept. The original brief is in `STA
 - Production is only ever built from `main` (CI → image). Never deploy by copying files to a server.
 - Ask before anything that costs money (servers, domains, Roboflow usage at scale), sends email/SMS
   to real people, or touches Eye of Omni's live server/database.
-- Numbers must be real. A store without counting shows "not set up", never zeros. Made-up numbers
-  exist only in **demo mode** (`DEMO_MODE=true`, `services/demo.ts`), which is for a separate demo
-  deployment with its own database: EXAMPLE stores, generated counts/sales that keep filling up to
-  now, one-click look-only logins on the sign-in page (corporate_viewer + one franchise owner, no
-  password), and a demo banner on every page, PDF and CSV. Never turn it on next to real stores.
+- Numbers must be real. A store without counting shows "not set up", never zeros. There is **no demo
+  mode** (owner chose "no demo data"). Never seed fake numbers into a shared database.
 - Branding is Foxtail Coffee Co.'s own (from foxtailcoffee.com): black/white, teal accent
   `#4F979A`/`#69C9CD` (`#3B7B7E` behind white text), rust `#9E3B1B`, script wordmark in
   `apps/portal/public/foxtail-*.png`, Gotham → Montserrat → system font. Colors live only in
