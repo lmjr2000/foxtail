@@ -29,9 +29,9 @@ export default function StoreDetail() {
   return (
     <div className="space-y-4">
       <PageHeader
-        crumbs={<><Link to="/stores" className="hover:underline">Stores</Link> / {data?.store.name ?? '…'}</>}
-        title={data?.store.name ?? 'Store'}
-        subtitle={data ? [storePlace(data.store), isCorporate ? (data.store.franchiseeName || 'Corporate-owned') : null].filter(Boolean).join(' · ') : undefined}
+        crumbs={<><Link to="/stores" className="hover:underline">Stores</Link> / {data?.store?.name ?? '…'}</>}
+        title={data?.store?.name ?? 'Store'}
+        subtitle={data?.store ? [storePlace(data.store), isCorporate ? (data.store.franchiseeName || 'Corporate-owned') : null].filter(Boolean).join(' · ') : undefined}
         actions={<>
           <button type="button" className="btn-secondary" disabled={!!busy || !data} onClick={() => dl('report.pdf', 'foxtail-report.pdf')}>{busy === 'report.pdf' ? 'Preparing…' : 'PDF report'}</button>
           <button type="button" className="btn-secondary" disabled={!!busy || !data} onClick={() => dl('hourly.csv', 'foxtail-hourly.csv')}>{busy === 'hourly.csv' ? 'Preparing…' : 'Hourly CSV'}</button>
@@ -81,7 +81,7 @@ export default function StoreDetail() {
           )}
           <PosSection storeId={storeId} range={range} canUpload={canManage} timezone={data.timezone} />
           <Card title="Cameras" right={<Link to={`/cameras?store=${storeId}`} className="btn-ghost btn-sm">Open camera wall</Link>} testId="store-cameras">
-            <StoreCameras store={{ id: storeId, name: data.store.name }} canManage={canManage} compact />
+            <StoreCameras store={{ id: storeId, name: data.store?.name ?? '' }} canManage={canManage} compact />
           </Card>
         </>
       )}
