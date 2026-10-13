@@ -30,7 +30,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     { to: '/cameras', label: 'Cameras' },
     { to: '/reports', label: 'Reports' },
   ];
-  if (canManage) items.push({ to: '/admin', label: 'Admin' });
+  if (canManage && !isDemo) items.push({ to: '/admin', label: 'Admin' });
   const link = ({ isActive }: { isActive: boolean }) =>
     `px-3 py-1.5 rounded-control text-sm font-medium transition-colors ${isActive ? 'bg-white/15 text-white' : 'text-white/75 hover:text-white hover:bg-white/10'}`;
 

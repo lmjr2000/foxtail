@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ROLE_LABELS, ROLES, type Role } from '@foxtail/shared';
-import { apiFetch, apiPost, type SessionUser } from '../lib/api';
+import { ApiError, apiFetch, apiPost, type SessionUser } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 declare global {
@@ -54,7 +54,15 @@ export default function Login() {
 
   const handleDemo = async (role: Role) => {
     setDemoRole(role); setError(null);
-    try { await demoLogin(role); } catch (err) { setError(err instanceof Error ? err.message : 'Demo sign-in failed'); } finally { setDemoRole(null); }
+    try {
+      await demoLogin(role);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 429) {
+        setError('Too many demo requests. Please wait a few minutes and try again.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Demo sign-in failed');
+      }
+    } finally { setDemoRole(null); }
   };
 
   const submit = async (e: FormEvent) => {

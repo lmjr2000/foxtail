@@ -13,7 +13,7 @@ import { Card } from '../components/ui';
 
 export default function StoreDetail() {
   const { storeId = '' } = useParams();
-  const { isCorporate, canManage } = useAuth();
+  const { isCorporate, canManage, isDemo } = useAuth();
   const { range, hours, qs, setRange, setHours } = useRange('today');
   const { data, error } = useApi<Insights>(`/foxtail/stores/${storeId}/insights?${qs}`, range === 'today' ? 60_000 : 0);
   const [busy, setBusy] = useState<string | null>(null);
@@ -35,7 +35,7 @@ export default function StoreDetail() {
         actions={<>
           <button type="button" className="btn-secondary" disabled={!!busy || !data} onClick={() => dl('report.pdf', 'foxtail-report.pdf')}>{busy === 'report.pdf' ? 'Preparing…' : 'PDF report'}</button>
           <button type="button" className="btn-secondary" disabled={!!busy || !data} onClick={() => dl('hourly.csv', 'foxtail-hourly.csv')}>{busy === 'hourly.csv' ? 'Preparing…' : 'Hourly CSV'}</button>
-          {isCorporate && <Link to={`/stores/${storeId}/settings`} className="btn-secondary">Settings</Link>}
+          {isCorporate && !isDemo && <Link to={`/stores/${storeId}/settings`} className="btn-secondary">Settings</Link>}
         </>}
       />
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -49,7 +49,7 @@ export default function StoreDetail() {
           {ds.zonesMeasurable === 0 ? (
             <div className="callout callout-info flex flex-wrap items-center justify-between gap-3">
               <span>Counting is not set up for this store yet, so there are no numbers to show.</span>
-              {canManage && <Link to={`/stores/${storeId}/settings?tab=counting`} className="btn-secondary btn-sm">Set up counting</Link>}
+              {canManage && !isDemo && <Link to={`/stores/${storeId}/settings?tab=counting`} className="btn-secondary btn-sm">Set up counting</Link>}
             </div>
           ) : !ds.samplingEnabled && !ds.hasData ? (
             <div className="callout callout-info">Counting areas are drawn, but counting is turned off for this store.</div>

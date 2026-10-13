@@ -193,11 +193,16 @@ paths:
       tags: [auth]
       summary: Sign in as a demo user for the given role
       description: |
-        Returns a token for a demo account restricted to the requested role.
-        Demo accounts have read-only access to demo/sample data. The frontend
-        tracks demo sessions separately and shows a "DEMO" banner with an exit button.
+        Returns a 2-hour read-only token for a demo account restricted to the requested role.
+        Demo tokens cannot write data; any write operation returns 403 with code DEMO_READ_ONLY.
+        The frontend tracks demo sessions separately and shows a "DEMO" banner with an exit button.
+        
+        Rate limited to 10 requests per 15 minutes per IP.
         
         Omni creates and manages demo accounts; no credentials are sent from the frontend.
+        
+        Demo users get 403 on: /foxtail/logins, /foxtail/audit, /foxtail/franchisees, and
+        camera frame.jpg endpoints (zone drawing).
       operationId: demoLogin
       requestBody:
         required: true
@@ -212,18 +217,20 @@ paths:
                   enum: [corporate_admin, corporate_viewer, franchise_owner]
                   description: |
                     Which role's demo account to sign in as:
-                    - corporate_admin: Full access to all demo stores and settings
+                    - corporate_admin: Full access to all demo stores (read-only)
                     - corporate_viewer: Read-only access to all demo stores
-                    - franchise_owner: Access to demo franchise stores only
+                    - franchise_owner: Access to demo franchise stores only (read-only)
       responses:
         '200':
-          description: Demo session started
+          description: Demo session started (2h read-only token)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/LoginResponse'
         '400':
           description: Invalid role
+        '429':
+          description: Rate limit exceeded (10 requests per 15 min per IP)
         '503':
           description: Demo accounts not available
 
@@ -1321,6 +1328,19 @@ components:
                 type: string
               message:
                 type: string
+    DemoReadOnly:
+      description: Demo sessions are read-only; write operations are not allowed
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                enum: [DEMO_READ_ONLY]
+              message:
+                type: string
+                example: Demo is read-only
     NotFound:
       description: Resource not found or not in scope
       content:
