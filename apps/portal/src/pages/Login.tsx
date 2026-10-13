@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { ROLE_LABELS, ROLES, type Role } from '@foxtail/shared';
 import { apiFetch, apiPost, type SessionUser } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
@@ -32,17 +33,29 @@ function GoogleButton({ clientId, onError }: { clientId: string; onError: (m: st
   return <div ref={ref} className="flex justify-center" />;
 }
 
+const DEMO_ROLE_DESCRIPTIONS: Record<Role, string> = {
+  corporate_admin: 'Full access to all stores and settings',
+  corporate_viewer: 'Read-only access to all stores',
+  franchise_owner: 'Access to owned franchise stores only',
+};
+
 const isPreview = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, demoLogin } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [demoRole, setDemoRole] = useState<Role | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [googleId, setGoogleId] = useState<string | null>(null);
 
   useEffect(() => { apiFetch<{ googleClientId: string | null }>('/auth/providers').then(c => setGoogleId(c.googleClientId)).catch(() => {}); }, []);
+
+  const handleDemo = async (role: Role) => {
+    setDemoRole(role); setError(null);
+    try { await demoLogin(role); } catch (err) { setError(err instanceof Error ? err.message : 'Demo sign-in failed'); } finally { setDemoRole(null); }
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -85,6 +98,24 @@ export default function Login() {
           {googleId && <><div className="text-center text-xs text-ink-4">or</div><GoogleButton clientId={googleId} onError={setError} /></>}
           <p className="text-xs text-ink-4">Forgot your password? Ask a Foxtail corporate admin to reset it.</p>
         </form>
+        <div className="w-full max-w-sm mt-8 pt-6 border-t border-line">
+          <h3 className="text-sm font-semibold text-ink mb-3">Try the demo</h3>
+          <div className="space-y-2">
+            {ROLES.map(role => (
+              <button
+                key={role}
+                type="button"
+                onClick={() => handleDemo(role)}
+                disabled={!!demoRole}
+                className="w-full text-left px-4 py-3 rounded-lg border border-line hover:border-accent hover:bg-accent-soft transition-colors disabled:opacity-50"
+              >
+                <div className="font-medium text-sm text-ink">{ROLE_LABELS[role]}</div>
+                <div className="text-xs text-ink-3">{DEMO_ROLE_DESCRIPTIONS[role]}</div>
+                {demoRole === role && <div className="text-xs text-accent mt-1">Signing in…</div>}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
       </div>
     </div>

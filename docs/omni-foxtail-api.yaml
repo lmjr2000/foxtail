@@ -188,6 +188,45 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /foxtail/auth/demo:
+    post:
+      tags: [auth]
+      summary: Sign in as a demo user for the given role
+      description: |
+        Returns a token for a demo account restricted to the requested role.
+        Demo accounts have read-only access to demo/sample data. The frontend
+        tracks demo sessions separately and shows a "DEMO" banner with an exit button.
+        
+        Omni creates and manages demo accounts; no credentials are sent from the frontend.
+      operationId: demoLogin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role:
+                  type: string
+                  enum: [corporate_admin, corporate_viewer, franchise_owner]
+                  description: |
+                    Which role's demo account to sign in as:
+                    - corporate_admin: Full access to all demo stores and settings
+                    - corporate_viewer: Read-only access to all demo stores
+                    - franchise_owner: Access to demo franchise stores only
+      responses:
+        '200':
+          description: Demo session started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Invalid role
+        '503':
+          description: Demo accounts not available
+
   # ============================================================================
   # SECURITY / ALERTS (first in nav)
   # ============================================================================

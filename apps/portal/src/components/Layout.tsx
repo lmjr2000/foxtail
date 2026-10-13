@@ -20,7 +20,7 @@ function toggleTheme() {
 const isPreview = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
 export default function Layout({ children }: { children: ReactNode }) {
-  const { user, isCorporate, canManage, signOut } = useAuth();
+  const { user, isCorporate, canManage, isDemo, signOut } = useAuth();
   const [menu, setMenu] = useState(false);
   const loc = useLocation();
   const items: Array<{ to: string; label: string; end?: boolean }> = [
@@ -36,7 +36,15 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col">
-      {isPreview && (
+      {isDemo && (
+        <div className="bg-accent text-white text-center py-2 px-4 text-sm font-semibold flex items-center justify-center gap-4">
+          <span>DEMO — viewing as {user ? ROLE_LABELS[user.role] : 'demo user'}</span>
+          <button type="button" onClick={signOut} className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-xs font-semibold">
+            Exit demo
+          </button>
+        </div>
+      )}
+      {isPreview && !isDemo && (
         <div className="bg-amber-500 text-black text-center py-2 px-4 text-sm font-semibold">
           ⚠️ PREVIEW — SAMPLE DATA ONLY — Not connected to live system
         </div>
