@@ -8,13 +8,17 @@
  *   GET  /api/stores/:storeId/insights                 dashboard ?range=&hours=
  *   GET  /api/stores/:storeId/report.pdf|report.csv|hourly.csv
  *   GET  /api/stores/:storeId/pos-compare(.csv)        traffic vs register sales ?range=
+ *   GET  /api/stores/:storeId/cameras                  cameras + last known online/offline status
+ *   GET  /api/stores/:storeId/cameras/:id/picture.jpg  latest picture (cached ~20 s)
+ *   GET  /api/stores/:storeId/cameras/:id/live/index.m3u8 (+ segments)  live video, on demand
  * Corporate (admin + viewer):
- *   GET  /api/stores/:storeId/recorder | cameras | counting | accuracy
+ *   GET  /api/stores/:storeId/recorder | counting | accuracy
  * Corporate admin only (settings):
  *   POST /api/stores, PATCH|DELETE /api/stores/:storeId
  *   PUT  /recorder, POST /recorder/test, POST /recorder/edge-token
  *   POST /cameras, PATCH|DELETE /cameras/:cameraId, GET /cameras/:cameraId/frame.jpg
  *   PUT  /counting/profile, PUT /counting/zones, POST /counting/test
+ *   POST /api/imports/ezcloud-channels                 real stores + cameras from the EZCloud export
  *   POST /pos-upload, DELETE /pos/:date, POST|DELETE /accuracy
  */
 import { Router, type Request } from 'express';
@@ -44,6 +48,8 @@ import * as recorders from '../services/recorders/recorders.js';
 import { grabFrame, PROBE_HINTS, probeRtsp, probeUrlFor } from '../services/recorders/capture.js';
 import { storeCsv, storeHourlyCsv, storePdf } from '../services/reports/store-report.js';
 import { slug } from '../services/reports/pdf.js';
+import { livePlaylist, liveSegment } from '../services/video/live.js';
+import { importChannelExport } from '../services/inventory/ezcloud-import.js';
 
 const router = Router();
 router.param('storeId', storeParam);
@@ -52,6 +58,7 @@ function storeView(s: Store) {
   return {
     id: s.id, storeNumber: s.storeNumber, name: s.name, address: s.address, city: s.city, state: s.state, postalCode: s.postalCode,
     timezone: s.timezone, openingHours: s.openingHours, franchiseeId: s.franchiseeId, franchiseeName: s.franchiseeName,
+    sourceDeviceName: s.sourceDeviceName, recorderModel: s.recorderModel,
   };
 }
 
@@ -62,10 +69,18 @@ router.get('/stores', async (req, res) => {
   const [setup, last] = await Promise.all([countingSetup(stores.map(s => s.id)), countingStore.lastSampleAt(stores.map(s => s.id))]);
   const r = await q('SELECT store_id, sampling_enabled FROM counting_profiles WHERE store_id = ANY($1::text[])', [stores.map(s => s.id)]);
   const on = new Map(r.rows.map(x => [String(x.store_id), x.sampling_enabled === true]));
+  const camRows = await q(
+    `SELECT c.store_id, COUNT(*)::int AS total, COUNT(*) FILTER (WHERE c.status = 'online')::int AS online, COUNT(*) FILTER (WHERE c.status = 'offline')::int AS offline,
+            MAX(c.status_at) AS status_at
+       FROM cameras c WHERE c.store_id = ANY($1::text[]) AND c.enabled GROUP BY c.store_id`, [stores.map(s => s.id)]);
+  const cams = new Map(camRows.rows.map(x => [String(x.store_id), { total: Number(x.total), online: Number(x.online), offline: Number(x.offline), statusAt: x.status_at ? new Date(x.status_at as string).toISOString() : null }]));
+  const recs = await q(`SELECT store_id, connection, host IS NOT NULL AND username IS NOT NULL AND password_sealed IS NOT NULL AS complete FROM recorders WHERE store_id = ANY($1::text[])`, [stores.map(s => s.id)]);
+  const video = new Map(recs.rows.map(x => [String(x.store_id), x.connection === 'edge' ? 'pictures' : x.complete ? 'live' : 'none']));
   res.json({
     stores: stores.map(s => ({
       ...storeView(s),
       counting: { areas: setup.get(s.id)?.areas ?? 0, measurable: setup.get(s.id)?.measurable ?? 0, enabled: on.get(s.id) ?? false, lastSampleAt: last.get(s.id)?.toISOString() ?? null },
+      cameras: { ...(cams.get(s.id) ?? { total: 0, online: 0, offline: 0, statusAt: null }), video: video.get(s.id) ?? 'none' },
     })),
   });
 });
@@ -333,8 +348,20 @@ router.post('/stores/:storeId/recorder/edge-token', requireManager, async (req, 
 
 // ------------------------------------------------------------------------------------- cameras
 
-router.get('/stores/:storeId/cameras', requireCorporate, async (req, res) => {
-  res.json({ cameras: await recorders.listCameras(theStore(req).id) });
+/** How a store's cameras can be watched: live video (direct recorder), pictures only (edge agent), or not yet. */
+async function videoMode(storeId: string): Promise<{ mode: 'live' | 'pictures' | 'none'; reason: string | null }> {
+  const rec = await recorders.getRecorder(storeId);
+  if (!rec) return { mode: 'none', reason: 'Add this store\'s recorder address and login (Settings → Recorder & cameras) to watch its cameras.' };
+  if (rec.connection === 'edge') return { mode: 'pictures', reason: 'This store connects through the edge agent: Foxtail shows the latest pictures it sends, not continuous video.' };
+  if (!rec.host || !rec.username || !rec.hasPassword) return { mode: 'none', reason: 'The recorder address, username or password is missing.' };
+  return { mode: 'live', reason: null };
+}
+
+/** Cameras with their last known status. Any login that can see the store can see its cameras. */
+router.get('/stores/:storeId/cameras', async (req, res) => {
+  const store = theStore(req);
+  const [cameras, video] = await Promise.all([recorders.listCameras(store.id), videoMode(store.id)]);
+  res.json({ cameras, video, recorderModel: store.recorderModel });
 });
 
 function cameraFields(b: Record<string, unknown>, partial: boolean) {
@@ -386,6 +413,79 @@ router.get('/stores/:storeId/cameras/:cameraId/frame.jpg', requireManager, async
   if (!f.ok || !f.jpeg) throw new HttpError(502, 'NO_FRAME', f.error || 'Could not get a picture from this camera right now');
   res.setHeader('Cache-Control', 'no-store');
   res.type('image/jpeg').send(f.jpeg);
+});
+
+// ------------------------------------------------------------------------------------- watching cameras
+
+// A wall of tiles must not open one recorder connection per tile every few seconds: share pictures for 20 s.
+const pictureCache = new Map<string, { at: number; jpeg: Buffer | null; error: string | null }>();
+const pictureInflight = new Map<string, Promise<{ jpeg: Buffer | null; error: string | null }>>();
+
+/** The latest picture from a camera (cached ~20 s, never stored). Same access as the store. */
+router.get('/stores/:storeId/cameras/:cameraId/picture.jpg', async (req, res) => {
+  const store = theStore(req);
+  const cam = await recorders.getCamera(store.id, String(req.params.cameraId));
+  if (!cam) throw notFound('Camera not found');
+  const hit = pictureCache.get(cam.id);
+  let pic: { jpeg: Buffer | null; error: string | null };
+  if (hit && Date.now() - hit.at < 20_000) pic = hit;
+  else {
+    let p = pictureInflight.get(cam.id);
+    if (!p) {
+      p = grabFrame(store.id, cam).then(async f => {
+        const out = { jpeg: f.ok && f.jpeg ? f.jpeg : null, error: f.ok ? null : f.error || 'No picture' };
+        pictureCache.set(cam.id, { at: Date.now(), ...out });
+        if (pictureCache.size > 2000) pictureCache.delete(pictureCache.keys().next().value as string);
+        const rec = await recorders.getRecorder(store.id);
+        // Only "online/offline" when Foxtail actually tried the recorder (not when no recorder is set up).
+        if (rec && (rec.connection === 'direct' || out.jpeg)) await recorders.setCameraStatus(cam.id, out.jpeg ? 'online' : 'offline').catch(() => {});
+        return out;
+      }).finally(() => pictureInflight.delete(cam.id));
+      pictureInflight.set(cam.id, p);
+    }
+    pic = await p;
+  }
+  if (!pic.jpeg) throw new HttpError(502, 'NO_PICTURE', pic.error || 'No picture from this camera right now');
+  res.setHeader('Cache-Control', 'private, max-age=15');
+  res.type('image/jpeg').send(pic.jpeg);
+});
+
+/** Live video playlist (HLS). Starts the camera's stream on first request; stops when nobody watches. */
+router.get('/stores/:storeId/cameras/:cameraId/live/index.m3u8', async (req, res) => {
+  const store = theStore(req);
+  const cam = await recorders.getCamera(store.id, String(req.params.cameraId));
+  if (!cam) throw notFound('Camera not found');
+  const v = await videoMode(store.id);
+  if (v.mode !== 'live') throw new HttpError(409, 'NO_LIVE_VIDEO', v.reason || 'Live video is not available for this store');
+  const url = await probeUrlFor(store.id, cam.channel);
+  if (!url) throw new HttpError(409, 'NO_LIVE_VIDEO', 'The recorder login is incomplete.');
+  const out = await livePlaylist(cam, url);
+  if (!out.ok) throw new HttpError(out.state === 'starting' ? 503 : 502, `LIVE_${out.state.toUpperCase().replace(/-/g, '_')}`, out.message, out.detail ? { detail: out.detail } : undefined);
+  res.setHeader('Cache-Control', 'no-store');
+  res.type('application/vnd.apple.mpegurl').send(out.body);
+});
+
+router.get('/stores/:storeId/cameras/:cameraId/live/:segment', async (req, res) => {
+  const store = theStore(req);
+  const cam = await recorders.getCamera(store.id, String(req.params.cameraId));
+  if (!cam) throw notFound('Camera not found');
+  const seg = liveSegment(cam.id, String(req.params.segment));
+  if (!seg) throw notFound('Segment not found');
+  res.setHeader('Cache-Control', 'no-store');
+  res.type('video/mp2t').send(seg);
+});
+
+// ------------------------------------------------------------------------------------- import real inventory
+
+/** EZCloud "Channel Management" export -> stores + cameras (corporate admin). dryRun previews it. */
+router.post('/imports/ezcloud-channels', requireManager, async (req, res) => {
+  const csv = typeof req.body?.csv === 'string' ? req.body.csv : '';
+  if (!csv.trim()) throw badRequest('Choose the EZCloud Channel Management export (CSV).');
+  if (csv.length > 8_000_000) throw badRequest('File is too large (max 8 MB).');
+  const out = await importChannelExport(csv, { dryRun: req.body?.dryRun === true });
+  if ('error' in out) throw badRequest(out.error);
+  if (!out.dryRun) await audit(req.auth!.user.id, 'inventory.ezcloud_import', null, { storesCreated: out.storesCreated, storesUpdated: out.storesUpdated, camerasCreated: out.camerasCreated, camerasUpdated: out.camerasUpdated });
+  res.json(out);
 });
 
 // ------------------------------------------------------------------------------------- counting setup

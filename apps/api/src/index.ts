@@ -2,6 +2,7 @@ import { createApp } from './app.js';
 import { jwtSecret } from './config.js';
 import { closePool, runMigrations } from './db/pool.js';
 import { startSampler, stopSampler } from './services/counting/sampler.js';
+import { stopAllLive } from './services/video/live.js';
 import { detectorConfigured } from './services/counting/detector.js';
 
 async function main() {
@@ -15,6 +16,7 @@ async function main() {
   startSampler();
   const stop = () => {
     stopSampler();
+    stopAllLive();
     server.close(() => { closePool().finally(() => process.exit(0)); });
     setTimeout(() => process.exit(0), 10_000).unref();
   };

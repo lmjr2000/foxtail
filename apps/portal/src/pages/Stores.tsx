@@ -34,13 +34,14 @@ export default function Stores() {
           {data.stores.length > 8 && <input className="input max-w-sm" placeholder="Search stores" aria-label="Search stores" value={q} onChange={e => setQ(e.target.value)} />}
           <div className="card overflow-x-auto">
             <table className="table">
-              <thead><tr><th>Store</th><th>Location</th>{isCorporate && <th>Franchisee</th>}<th>Counting</th><th /></tr></thead>
+              <thead><tr><th>Store</th><th>Location</th>{isCorporate && <th>Franchisee</th>}<th>Cameras</th><th>Counting</th><th /></tr></thead>
               <tbody>
                 {list.map(s => (
                   <tr key={s.id} className="hover:bg-surface-2">
                     <td><Link to={`/stores/${s.id}`} className="font-medium text-ink hover:text-accent-ink">{s.name}</Link></td>
                     <td className="text-ink-3">{storePlace(s) || '—'}</td>
                     {isCorporate && <td className="text-ink-3">{s.franchiseeName || 'Corporate'}</td>}
+                    <td className="whitespace-nowrap text-xs">{s.cameras.total ? <Link to={`/cameras?store=${s.id}`} className="hover:underline"><span className="text-ok">{s.cameras.online} online</span>{s.cameras.offline > 0 && <span className="text-bad"> · {s.cameras.offline} offline</span>}<span className="text-ink-4"> / {s.cameras.total}</span></Link> : <span className="text-ink-4">—</span>}</td>
                     <td>{countingBadge(s)}</td>
                     <td className="text-right whitespace-nowrap">
                       <Link to={`/stores/${s.id}`} className="btn-ghost btn-sm">Dashboard</Link>

@@ -7,7 +7,7 @@ import { useAuth } from '../lib/auth';
 import { fmtAgo } from '../lib/format';
 import { Card, Empty, ErrorNote, Field, Loading, Modal, PageHeader, Pill } from '../components/ui';
 
-const TABS = [{ key: 'logins', label: 'Logins' }, { key: 'franchisees', label: 'Franchisees' }, { key: 'activity', label: 'Change log' }] as const;
+const TABS = [{ key: 'logins', label: 'Logins' }, { key: 'franchisees', label: 'Franchisees' }, { key: 'import', label: 'Import cameras' }, { key: 'activity', label: 'Change log' }] as const;
 
 export default function Admin() {
   const [params, setParams] = useSearchParams();
@@ -24,6 +24,7 @@ export default function Admin() {
       </div>
       {tab === 'logins' && <Logins />}
       {tab === 'franchisees' && <Franchisees />}
+      {tab === 'import' && <ImportCameras />}
       {tab === 'activity' && <Activity />}
     </div>
   );
@@ -199,5 +200,68 @@ function Activity() {
         </div>
       )}
     </Card>
+  );
+}
+
+interface ImportResult {
+  dryRun: boolean; storesCreated: number; storesUpdated: number; camerasCreated: number; camerasUpdated: number; online: number; offline: number; rowsSkipped: number; errors: string[];
+  stores: Array<{ name: string; device: string; model: string; cameras: number; online: number; offline: number; action: 'create' | 'update' | 'skip-archived'; storeId: string | null; owner: string | null }>;
+}
+
+/** Real stores + cameras from the EZCloud "Channel Management" export (the file Eye of Omni imported). */
+function ImportCameras() {
+  const [file, setFile] = useState<{ name: string; text: string } | null>(null);
+  const [preview, setPreview] = useState<ImportResult | null>(null);
+  const [done, setDone] = useState<ImportResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const send = async (dryRun: boolean) => {
+    if (!file) return;
+    setBusy(true); setErr(null);
+    try {
+      const r = await apiPost<ImportResult>('/imports/ezcloud-channels', { csv: file.text, dryRun });
+      if (dryRun) setPreview(r); else { setDone(r); setPreview(null); setFile(null); }
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Import failed'); } finally { setBusy(false); }
+  };
+  const r = done || preview;
+  return (
+    <div className="space-y-4">
+      <Card title="Import stores and cameras from EZCloud">
+        <div className="space-y-3 text-sm">
+          <p className="text-ink-2">In the EZCloud console, open <b>Channel Management</b> and export the channel list (CSV). This is the same file Eye of Omni imported for the “Foxtail / …” locations. Each recorder (Device) becomes a store and each channel a camera, with its online/offline status.</p>
+          <p className="text-xs text-ink-3">Importing a newer export later updates names and status; it never creates duplicates. New stores start without a franchisee — assign them on the Stores page. Adding a store's recorder address and login turns on live video and counting.</p>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="block"><span className="input-label">Channel Management export</span>
+              <input type="file" accept=".csv,.txt,text/csv" className="text-sm" onChange={async e => { const f = e.target.files?.[0]; setPreview(null); setDone(null); setFile(f ? { name: f.name, text: await f.text() } : null); }} />
+            </label>
+            <button type="button" className="btn-secondary" disabled={!file || busy} onClick={() => send(true)}>Check file</button>
+            <button type="button" className="btn-primary" disabled={!preview || busy} onClick={() => send(false)}>{busy ? 'Working…' : preview ? `Import ${preview.stores.filter(x => x.action !== 'skip-archived').length} stores` : 'Import'}</button>
+          </div>
+          <ErrorNote error={err} />
+          {done && <div className="callout callout-ok">Imported: {done.storesCreated} new stores, {done.storesUpdated} updated, {done.camerasCreated} new cameras, {done.camerasUpdated} updated.</div>}
+        </div>
+      </Card>
+      {r && (
+        <Card title={r.dryRun ? 'What this file will do' : 'Imported'} right={<span className="text-xs text-ink-3">{r.online} cameras online · {r.offline} offline{r.rowsSkipped ? ` · ${r.rowsSkipped} rows skipped` : ''}</span>}>
+          <div className="overflow-x-auto -mx-4">
+            <table className="table">
+              <thead><tr><th>Store</th><th>Recorder</th><th className="num">Cameras</th><th className="num">Online</th><th className="num">Offline</th><th>EZCloud owner</th><th /></tr></thead>
+              <tbody>
+                {r.stores.map(s => (
+                  <tr key={s.device}>
+                    <td className="text-ink">{s.name}</td>
+                    <td className="text-ink-3">{s.model || '—'}</td>
+                    <td className="num">{s.cameras}</td><td className="num text-ok">{s.online}</td><td className={`num ${s.offline ? 'text-bad' : ''}`}>{s.offline}</td>
+                    <td className="text-ink-3">{s.owner || '—'}</td>
+                    <td>{s.action === 'create' ? <Pill tone="accent">New</Pill> : s.action === 'update' ? <Pill tone="neutral">Update</Pill> : <Pill tone="warn" title="This store was archived in Foxtail">Archived, skipped</Pill>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {r.errors.length > 0 && <details className="mt-2 text-xs text-ink-3"><summary className="cursor-pointer">{r.errors.length} rows could not be read</summary><ul className="mt-1 list-disc pl-5">{r.errors.map(e => <li key={e}>{e}</li>)}</ul></details>}
+        </Card>
+      )}
+    </div>
   );
 }

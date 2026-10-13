@@ -15,6 +15,8 @@ const token = (name) => `var(--${name})`;
 
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
+  // Built from props (`badge-${tone}`), so name them here or the build drops them.
+  safelist: ['badge-ok', 'badge-warn', 'badge-bad', 'badge-info', 'badge-neutral', 'badge-accent'],
   darkMode: 'class',
   theme: {
     extend: {

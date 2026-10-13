@@ -24,6 +24,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const items: Array<{ to: string; label: string; end?: boolean }> = [
     { to: '/', label: isCorporate ? 'Overview' : 'My stores', end: true },
     { to: '/stores', label: 'Stores' },
+    { to: '/cameras', label: 'Cameras' },
     { to: '/reports', label: 'Reports' },
   ];
   if (canManage) items.push({ to: '/admin', label: 'Admin' });

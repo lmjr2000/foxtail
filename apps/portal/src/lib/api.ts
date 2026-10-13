@@ -96,8 +96,32 @@ export interface SessionUser { id: string; email: string; name: string; role: Ro
 export interface Store {
   id: string; storeNumber: string | null; name: string; address: string | null; city: string | null; state: string | null; postalCode: string | null;
   timezone: string; openingHours: OperatingHours; franchiseeId: string | null; franchiseeName: string | null;
+  sourceDeviceName?: string | null; recorderModel?: string | null;
 }
-export interface StoreListItem extends Store { counting: { areas: number; measurable: number; enabled: boolean; lastSampleAt: string | null } }
+export interface StoreListItem extends Store {
+  counting: { areas: number; measurable: number; enabled: boolean; lastSampleAt: string | null };
+  cameras: { total: number; online: number; offline: number; statusAt: string | null; video: VideoMode };
+}
+
+/** live = direct recorder (video), pictures = edge agent (latest pictures), none = recorder login not set up yet. */
+export type VideoMode = 'live' | 'pictures' | 'none';
+
+export interface Camera {
+  id: string; storeId: string; name: string; channel: number; enabled: boolean;
+  source: 'manual' | 'ezcloud'; model: string | null; serialNo: string | null;
+  status: 'online' | 'offline' | 'unknown'; statusAt: string | null; statusSource: string | null;
+}
+
+/** Fetch an image the API protects (session header) and return an object URL for <img>. */
+export async function fetchImage(path: string): Promise<string> {
+  const res = await fetch(`/api${path}`, { headers: { Authorization: `Bearer ${getToken() ?? ''}` } });
+  if (!res.ok) {
+    let message = `No picture (${res.status})`;
+    try { message = (await res.json()).message || message; } catch { /* binary */ }
+    throw new Error(message);
+  }
+  return URL.createObjectURL(await res.blob());
+}
 
 export interface MetricValue {
   key: string; label: string; unit: 'count' | 'seconds' | 'percent' | 'score'; value: number | null; display: string;

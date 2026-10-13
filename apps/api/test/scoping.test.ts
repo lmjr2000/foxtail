@@ -27,7 +27,7 @@ function storeRoutesWithId(): Array<{ method: string; path: string }> {
 }
 
 function fill(path: string, storeId: string): string {
-  return '/api' + path.replace(':storeId', storeId).replace(':cameraId', 'cam_0000000000000000').replace(':checkId', 'acc_0000000000000000').replace(':date', '2026-01-01');
+  return '/api' + path.replace(':storeId', storeId).replace(':cameraId', 'cam_0000000000000000').replace(':checkId', 'acc_0000000000000000').replace(':date', '2026-01-01').replace(':segment', 'seg000001.ts');
 }
 
 function send(method: string, url: string, headers: Record<string, string>) {
@@ -98,7 +98,6 @@ describe('every per-store route', () => {
       ['delete', ''],
       ['put', '/recorder', { vendor: 'uniview', connection: 'direct', host: '1.2.3.4' }],
       ['get', '/recorder'],
-      ['get', '/cameras'],
       ['post', '/cameras', { name: 'x', channel: 1 }],
       ['get', '/counting'],
       ['put', '/counting/profile', { samplingEnabled: false }],
@@ -113,6 +112,13 @@ describe('every per-store route', () => {
     }
     const r = await q('SELECT name FROM stores WHERE id = $1', [w.storeA1]);
     expect(r.rows[0].name).toBe('Alpha Downtown');
+  });
+
+  it('owner can list their own store cameras, but never the recorder address or login', async () => {
+    await api().put(`/api/stores/${w.storeA1}/recorder`).set(w.admin.auth).send({ vendor: 'uniview', connection: 'direct', host: '198.51.100.9', username: 'nvradmin', password: 'Rec0rder-Secret' });
+    const res = await api().get(`/api/stores/${w.storeA1}/cameras`).set(w.ownerA.auth);
+    expect(res.status).toBe(200);
+    expect(res.text).not.toMatch(/198.51.100.9|nvradmin|Rec0rder-Secret/);
   });
 
   it('corporate viewer reads everything but changes nothing', async () => {

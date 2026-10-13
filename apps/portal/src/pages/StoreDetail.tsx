@@ -8,6 +8,8 @@ import { RangeBar, useRange } from '../components/RangeBar';
 import { ErrorNote, Loading, PageHeader } from '../components/ui';
 import { FlowCard, HoursCard, InsightsCard, KpiRow, LineCard, MomentsCard, PickupCard, SeatingCard, StaffingCard, TrafficChart } from '../components/StoreCards';
 import PosSection from '../components/PosSection';
+import { StoreCameras } from './Cameras';
+import { Card } from '../components/ui';
 
 export default function StoreDetail() {
   const { storeId = '' } = useParams();
@@ -78,6 +80,9 @@ export default function StoreDetail() {
             </>
           )}
           <PosSection storeId={storeId} range={range} canUpload={canManage} timezone={data.timezone} />
+          <Card title="Cameras" right={<Link to={`/cameras?store=${storeId}`} className="btn-ghost btn-sm">Open camera wall</Link>} testId="store-cameras">
+            <StoreCameras store={{ id: storeId, name: data.store.name }} canManage={canManage} compact />
+          </Card>
         </>
       )}
     </div>

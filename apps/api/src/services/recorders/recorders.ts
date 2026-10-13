@@ -26,7 +26,12 @@ export interface Recorder {
   lastTestError: string | null;
 }
 
-export interface Camera { id: string; storeId: string; name: string; channel: number; enabled: boolean }
+export interface Camera {
+  id: string; storeId: string; name: string; channel: number; enabled: boolean;
+  source: 'manual' | 'ezcloud'; model: string | null; serialNo: string | null;
+  /** Last known: from the EZCloud export, or set by Foxtail when it pulls a picture or video. */
+  status: 'online' | 'offline' | 'unknown'; statusAt: string | null; statusSource: string | null;
+}
 
 type Row = Record<string, unknown>;
 const iso = (v: unknown) => (v ? new Date(String(v)).toISOString() : null);
@@ -101,7 +106,16 @@ export async function touchEdge(storeId: string, version: string | null): Promis
 // ------------------------------------------------------------------------------------------- cameras
 
 function rowToCamera(r: Row): Camera {
-  return { id: String(r.id), storeId: String(r.store_id), name: String(r.name), channel: Number(r.channel), enabled: r.enabled !== false };
+  return {
+    id: String(r.id), storeId: String(r.store_id), name: String(r.name), channel: Number(r.channel), enabled: r.enabled !== false,
+    source: r.source === 'ezcloud' ? 'ezcloud' : 'manual', model: (r.model as string) ?? null, serialNo: (r.serial_no as string) ?? null,
+    status: r.status === 'online' || r.status === 'offline' ? r.status : 'unknown', statusAt: iso(r.status_at), statusSource: (r.status_source as string) ?? null,
+  };
+}
+
+/** Record what Foxtail itself just saw (a picture or video worked, or the recorder did not answer). */
+export async function setCameraStatus(cameraId: string, status: 'online' | 'offline'): Promise<void> {
+  await q(`UPDATE cameras SET status = $2, status_at = NOW(), status_source = 'foxtail' WHERE id = $1`, [cameraId, status]);
 }
 
 export async function listCameras(storeId: string): Promise<Camera[]> {

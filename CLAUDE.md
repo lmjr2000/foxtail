@@ -38,6 +38,22 @@ no alerts, no monitoring desk, no recordings kept. The original brief is in `STA
   franchisee's store. **Any new per-store route must live on that router** so it is covered.
 - Overview / all-stores reports use `listScopedStores` — a franchise owner's "all stores" is theirs.
 
+## Real locations, cameras and video
+- Stores + cameras come from the EZCloud "Channel Management" CSV (the same file Eye of Omni imported as
+  "Foxtail / <store>"): Admin → Import cameras → `POST /api/imports/ezcloud-channels`
+  (`services/inventory/ezcloud-import.ts`). One store per EZCloud Device (`stores.source_device_name`),
+  one camera per channel, matched on re-import by recorder + channel number (the export's
+  "Channel Serial No." is a shared model code, NOT unique). Timezone guessed from the state suffix.
+- Camera status: from the export (`status_source='ezcloud'`) or set by Foxtail when it pulls a
+  picture/video (`'foxtail'`). Every login that can see a store can see its cameras (owners too);
+  recorder address/login are never returned.
+- Video needs the store's recorder (Settings → Recorder & cameras): `direct` = live HLS via
+  `services/video/live.ts` (on-demand ffmpeg per watched camera, HEVC→H.264 640px/12fps, stops ~45 s
+  after the last viewer, served only through `/api/stores/:id/cameras/:id/live/*`); `edge` = latest
+  pictures pushed by the edge agent. Pictures: `picture.jpg`, cached 20 s per camera.
+- Portal: `pages/Cameras.tsx` (all locations + camera wall), `components/CameraViews.tsx` (tile,
+  hls.js player with the auth header via `xhrSetup`). CSP allows `media-src/worker-src blob:` for hls.js.
+
 ## Counting pipeline
 `services/counting/`: sampler (every N s, open hours only, stores with counting on) → `recorders/capture.ts`
 (ffmpeg RTSP for `direct`, newest pushed frame for `edge`) → `detector.ts` (Roboflow, fails closed,

@@ -10,6 +10,7 @@ import StoreDetail from './pages/StoreDetail';
 import StoreSettings from './pages/StoreSettings';
 import Reports from './pages/Reports';
 import Admin from './pages/Admin';
+import Cameras from './pages/Cameras';
 
 export default function App() {
   const { user, ready, isCorporate, canManage } = useAuth();
@@ -23,6 +24,7 @@ export default function App() {
         <Route path="/stores" element={<Stores />} />
         <Route path="/stores/:storeId" element={<StoreDetail />} />
         {isCorporate && <Route path="/stores/:storeId/settings" element={<StoreSettings />} />}
+        <Route path="/cameras" element={<Cameras />} />
         <Route path="/reports" element={<Reports />} />
         {canManage && <Route path="/admin" element={<Admin />} />}
         <Route path="/account" element={<Account />} />

@@ -29,6 +29,7 @@ export function createApp(opts: { portalDir?: string | null } = {}) {
     res.setHeader('Content-Security-Policy', [
       "default-src 'self'", "img-src 'self' data: blob:", "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
       "script-src 'self' https://accounts.google.com/gsi/client", "frame-src https://accounts.google.com", "connect-src 'self' https://accounts.google.com/gsi/",
+      "media-src 'self' blob:", "worker-src 'self' blob:",
       "frame-ancestors 'none'", "base-uri 'self'", "form-action 'self'",
     ].join('; '));
     if (process.env.NODE_ENV === 'production') res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');

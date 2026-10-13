@@ -21,6 +21,9 @@ export interface Store {
   openingHours: OperatingHours;
   franchiseeId: string | null;
   franchiseeName: string | null;
+  /** EZCloud device (recorder) the store was imported from, and its model. */
+  sourceDeviceName: string | null;
+  recorderModel: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -40,6 +43,8 @@ export function rowToStore(r: Row): Store {
     openingHours: r.opening_hours as OperatingHours,
     franchiseeId: (r.franchisee_id as string) ?? null,
     franchiseeName: (r.franchisee_name as string) ?? null,
+    sourceDeviceName: (r.source_device_name as string) ?? null,
+    recorderModel: (r.recorder_model as string) ?? null,
     createdAt: new Date(String(r.created_at)).toISOString(),
     updatedAt: new Date(String(r.updated_at)).toISOString(),
   };
