@@ -1176,6 +1176,9 @@ paths:
     post:
       tags: [people]
       summary: Create user (corporate admin)
+      description: |
+        Create a new user with an admin-provided password. The password must be at least 10 characters.
+        No email is sent; the admin communicates the credentials to the user directly.
       operationId: createUser
       security:
         - bearerAuth: []
@@ -1184,10 +1187,28 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UserInput'
+              type: object
+              required: [email, password, role]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 10
+                  description: Admin-provided password (at least 10 characters)
+                name:
+                  type: string
+                role:
+                  type: string
+                  enum: [corporate_admin, corporate_viewer, franchise_owner]
+                franchiseeId:
+                  type: string
+                  nullable: true
+                  description: Required when role is franchise_owner
       responses:
         '201':
-          description: Created with temporary password
+          description: User created
           content:
             application/json:
               schema:
@@ -1195,10 +1216,12 @@ paths:
                 properties:
                   user:
                     $ref: '#/components/schemas/AdminUser'
-                  temporaryPassword:
-                    type: string
+        '400':
+          description: Invalid input (password too short, missing required fields)
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Email already exists
 
   /foxtail/users/{userId}:
     patch:
@@ -1224,11 +1247,14 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /foxtail/users/{userId}/reset-password:
-    post:
+  /foxtail/users/{userId}/password:
+    patch:
       tags: [people]
-      summary: Reset user password (corporate admin)
-      operationId: resetUserPassword
+      summary: Set user password (corporate admin)
+      description: |
+        Set a new password for an existing user. The password must be at least 10 characters.
+        This ends all of the user's active sessions. No email is sent.
+      operationId: setUserPassword
       security:
         - bearerAuth: []
       parameters:
@@ -1237,18 +1263,27 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: string
+                  minLength: 10
+                  description: New password (at least 10 characters)
       responses:
         '200':
-          description: Password reset; returns temporary password
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  temporaryPassword:
-                    type: string
+          description: Password set successfully
+        '400':
+          description: Password too short (must be at least 10 characters)
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   # ============================================================================
   # AUDIT LOG (corporate admin)

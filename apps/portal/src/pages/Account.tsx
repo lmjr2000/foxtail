@@ -3,7 +3,7 @@ import { apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { PageHeader } from '../components/ui';
 
-/** Change password. When `forced`, this is the only thing a login with a temporary password can do. */
+/** Change password. When `forced`, this is the only thing a user with mustChangePassword=true can do. */
 export default function Account({ forced = false }: { forced?: boolean }) {
   const { signOut, user } = useAuth();
   const [current, setCurrent] = useState('');
@@ -38,7 +38,7 @@ export default function Account({ forced = false }: { forced?: boolean }) {
   const form = (
     <form onSubmit={submit} className="card card-body max-w-md space-y-4">
       {msg && <div className={`callout ${msg.ok ? 'callout-ok' : 'callout-bad'}`} role="status">{msg.text}</div>}
-      <label className="block"><span className="input-label">{forced ? 'Temporary password' : 'Current password'}</span>
+      <label className="block"><span className="input-label">Current password</span>
         <input className="input" type="password" autoComplete="current-password" required value={current} onChange={e => setCurrent(e.target.value)} />
       </label>
       <label className="block"><span className="input-label">New password</span>
@@ -60,7 +60,7 @@ export default function Account({ forced = false }: { forced?: boolean }) {
       <div className="min-h-screen flex items-center justify-center p-6">
         <div className="w-full max-w-md space-y-4">
           <img src="/foxtail-wordmark-black.png" alt="Foxtail Coffee Co." className="h-8 w-auto dark:invert" />
-          <div><h1 className="text-xl font-bold text-ink">Choose your password</h1><p className="text-sm text-ink-3 mt-1">Welcome{user?.name ? `, ${user.name}` : ''}. Replace the temporary password you were given before continuing.</p></div>
+          <div><h1 className="text-xl font-bold text-ink">Set your password</h1><p className="text-sm text-ink-3 mt-1">Welcome{user?.name ? `, ${user.name}` : ''}. Please set a new password before continuing.</p></div>
           {form}
         </div>
       </div>

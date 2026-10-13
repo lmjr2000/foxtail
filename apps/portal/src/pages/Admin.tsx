@@ -29,27 +29,12 @@ export default function Admin() {
   );
 }
 
-function OneTimePassword({ email, password, onClose }: { email: string; password: string; onClose: () => void }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <Modal title="Temporary password" open onClose={onClose} footer={<button type="button" className="btn-primary" onClick={onClose}>Done</button>}>
-      <div className="space-y-3 text-sm">
-        <p className="text-ink-2">Give this to <b>{email}</b> yourself (Foxtail does not email it). They must choose their own password at first sign-in. It will not be shown again.</p>
-        <div className="flex items-center gap-2">
-          <code className="flex-1 rounded-control bg-surface-2 border border-line px-3 py-2 font-mono text-base text-ink select-all">{password}</code>
-          <button type="button" className="btn-secondary btn-sm" onClick={async () => { try { await navigator.clipboard.writeText(password); setCopied(true); } catch { /* blocked */ } }}>{copied ? 'Copied' : 'Copy'}</button>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
 function Logins() {
   const { user: me } = useAuth();
   const users = useApi<{ users: AdminUser[] }>('/foxtail/users');
   const fr = useApi<{ franchisees: Franchisee[] }>('/foxtail/franchisees');
   const [edit, setEdit] = useState<AdminUser | 'new' | null>(null);
-  const [otp, setOtp] = useState<{ email: string; password: string } | null>(null);
+  const [setPasswordFor, setSetPasswordFor] = useState<AdminUser | null>(null);
   const frName = new Map((fr.data?.franchisees || []).map(f => [f.id, f.name]));
   return (
     <>
@@ -66,7 +51,7 @@ function Logins() {
                   <td>{u.email}</td>
                   <td>{ROLE_LABELS[u.role]}</td>
                   <td>{u.franchiseeId ? frName.get(u.franchiseeId) ?? '…' : <span className="text-ink-4">—</span>}</td>
-                  <td>{u.disabled ? <Pill tone="neutral">Turned off</Pill> : u.mustChangePassword ? <Pill tone="warn">Has not signed in yet</Pill> : fmtAgo(u.lastLoginAt)}</td>
+                  <td>{u.disabled ? <Pill tone="neutral">Turned off</Pill> : u.mustChangePassword ? <Pill tone="warn">Password not set</Pill> : fmtAgo(u.lastLoginAt)}</td>
                   <td className="text-right"><button type="button" className="btn-ghost btn-sm" onClick={() => setEdit(u)}>Edit</button></td>
                 </tr>
               ))}
@@ -75,28 +60,40 @@ function Logins() {
         </div>
       )}
       {edit && <LoginEditor user={edit === 'new' ? null : edit} franchisees={fr.data?.franchisees || []} onClose={() => setEdit(null)}
-        onSaved={(pw, email) => { setEdit(null); users.reload(); if (pw) setOtp({ email, password: pw }); }} />}
-      {otp && <OneTimePassword {...otp} onClose={() => setOtp(null)} />}
+        onSaved={() => { setEdit(null); users.reload(); }} onSetPassword={u => { setEdit(null); setSetPasswordFor(u); }} />}
+      {setPasswordFor && <SetPasswordModal user={setPasswordFor} onClose={() => setSetPasswordFor(null)} onSaved={() => { setSetPasswordFor(null); users.reload(); }} />}
     </>
   );
 }
 
-function LoginEditor({ user, franchisees, onClose, onSaved }: { user: AdminUser | null; franchisees: Franchisee[]; onClose: () => void; onSaved: (tempPassword: string | null, email: string) => void }) {
-  const [f, setF] = useState({ email: user?.email ?? '', name: user?.name ?? '', role: (user?.role ?? 'franchise_owner') as Role, franchiseeId: user?.franchiseeId ?? '', disabled: user?.disabled ?? false });
+function LoginEditor({ user, franchisees, onClose, onSaved, onSetPassword }: { user: AdminUser | null; franchisees: Franchisee[]; onClose: () => void; onSaved: () => void; onSetPassword: (u: AdminUser) => void }) {
+  const [f, setF] = useState({ email: user?.email ?? '', name: user?.name ?? '', role: (user?.role ?? 'franchise_owner') as Role, franchiseeId: user?.franchiseeId ?? '', disabled: user?.disabled ?? false, password: '', confirmPassword: '' });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const go = async (fn: () => Promise<void>) => { setBusy(true); setErr(null); try { await fn(); } catch (e) { setErr(e instanceof Error ? e.message : 'Could not save'); } finally { setBusy(false); } };
+  
+  const passwordValid = f.password.length >= 10 && f.password === f.confirmPassword;
+  const canSave = user 
+    ? true 
+    : f.email && passwordValid && (f.role !== 'franchise_owner' || f.franchiseeId);
+  
   const save = () => go(async () => {
     const body = { name: f.name, role: f.role, franchiseeId: f.role === 'franchise_owner' ? f.franchiseeId || null : null };
-    if (user) { await apiPatch(`/foxtail/users/${user.id}`, { ...body, disabled: f.disabled }); onSaved(null, user.email); }
-    else { const r = await apiPost<{ temporaryPassword: string }>('/foxtail/users', { ...body, email: f.email }); onSaved(r.temporaryPassword, f.email); }
+    if (user) { 
+      await apiPatch(`/foxtail/users/${user.id}`, { ...body, disabled: f.disabled }); 
+      onSaved(); 
+    } else { 
+      await apiPost('/foxtail/users', { ...body, email: f.email, password: f.password }); 
+      onSaved(); 
+    }
   });
+  
   return (
     <Modal title={user ? `Edit ${user.email}` : 'Add login'} open onClose={onClose}
       footer={<>
-        {user && <button type="button" className="btn-ghost mr-auto" disabled={busy} onClick={() => go(async () => { if (!confirm('Reset this password? Their current sessions end.')) return; const r = await apiPost<{ temporaryPassword: string }>(`/foxtail/users/${user.id}/reset-password`, {}); onSaved(r.temporaryPassword, user.email); })}>Reset password</button>}
+        {user && <button type="button" className="btn-ghost mr-auto" disabled={busy} onClick={() => onSetPassword(user)}>Set password</button>}
         <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
-        <button type="button" className="btn-primary" disabled={busy || (!user && !f.email) || (f.role === 'franchise_owner' && !f.franchiseeId)} onClick={save}>{busy ? 'Saving…' : user ? 'Save' : 'Create login'}</button>
+        <button type="button" className="btn-primary" disabled={busy || !canSave} onClick={save}>{busy ? 'Saving…' : user ? 'Save' : 'Create login'}</button>
       </>}>
       <div className="space-y-3">
         <ErrorNote error={err} />
@@ -113,10 +110,60 @@ function LoginEditor({ user, franchisees, onClose, onSaved }: { user: AdminUser 
             </select>
           </Field>
         )}
+        {!user && (
+          <>
+            <Field label="Password" help="At least 10 characters">
+              <input className="input" type="password" value={f.password} onChange={e => setF(x => ({ ...x, password: e.target.value }))} autoComplete="new-password" />
+            </Field>
+            <Field label="Confirm password">
+              <input className="input" type="password" value={f.confirmPassword} onChange={e => setF(x => ({ ...x, confirmPassword: e.target.value }))} autoComplete="new-password" />
+            </Field>
+            {f.password && f.password.length < 10 && <p className="text-xs text-bad">Password must be at least 10 characters.</p>}
+            {f.password && f.confirmPassword && f.password !== f.confirmPassword && <p className="text-xs text-bad">Passwords do not match.</p>}
+          </>
+        )}
         {user && (
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.disabled} onChange={e => setF(x => ({ ...x, disabled: e.target.checked }))} /> Turn off this login (signs them out everywhere)</label>
         )}
-        {!user && <p className="text-xs text-ink-3">A temporary password is shown once after you create the login. No email is sent.</p>}
+      </div>
+    </Modal>
+  );
+}
+
+function SetPasswordModal({ user, onClose, onSaved }: { user: AdminUser; onClose: () => void; onSaved: () => void }) {
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  
+  const valid = password.length >= 10 && password === confirm;
+  
+  const save = async () => {
+    setBusy(true); setErr(null);
+    try {
+      await apiPatch(`/foxtail/users/${user.id}/password`, { password });
+      onSaved();
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Could not set password'); } 
+    finally { setBusy(false); }
+  };
+  
+  return (
+    <Modal title={`Set password for ${user.email}`} open onClose={onClose}
+      footer={<>
+        <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
+        <button type="button" className="btn-primary" disabled={busy || !valid} onClick={save}>{busy ? 'Saving…' : 'Set password'}</button>
+      </>}>
+      <div className="space-y-3">
+        <ErrorNote error={err} />
+        <p className="text-sm text-ink-2">Set a new password for this user. This will sign them out of all active sessions.</p>
+        <Field label="New password" help="At least 10 characters">
+          <input className="input" type="password" value={password} onChange={e => setPassword(e.target.value)} autoFocus autoComplete="new-password" />
+        </Field>
+        <Field label="Confirm password">
+          <input className="input" type="password" value={confirm} onChange={e => setConfirm(e.target.value)} autoComplete="new-password" />
+        </Field>
+        {password && password.length < 10 && <p className="text-xs text-bad">Password must be at least 10 characters.</p>}
+        {password && confirm && password !== confirm && <p className="text-xs text-bad">Passwords do not match.</p>}
       </div>
     </Modal>
   );
