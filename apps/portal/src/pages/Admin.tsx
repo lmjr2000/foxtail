@@ -40,7 +40,7 @@ function Logins() {
     <>
       <div className="flex justify-end"><button type="button" className="btn-primary mobile-full-width" onClick={() => setEdit('new')}>Add login</button></div>
       <ErrorNote error={users.error} />
-      {!users.data ? <Loading /> : (
+      {!users.data ? <Loading /> : !users.data.users?.length ? <Empty>No logins yet.</Empty> : (
         <>
           {/* Desktop table */}
           <div className="card overflow-x-auto desktop-table">
@@ -196,7 +196,7 @@ function Franchisees() {
     <>
       <div className="flex justify-end"><button type="button" className="btn-primary mobile-full-width" onClick={() => setEdit('new')}>Add franchisee</button></div>
       <ErrorNote error={fr.error} />
-      {!fr.data ? <Loading /> : fr.data.franchisees.length === 0 ? <Empty>No franchisees yet. Add one, then assign stores and franchise-owner logins to it.</Empty> : (
+      {!fr.data ? <Loading /> : !fr.data.franchisees?.length ? <Empty>No franchisees yet. Add one, then assign stores and franchise-owner logins to it.</Empty> : (
         <>
           {/* Desktop table */}
           <div className="card overflow-x-auto desktop-table">
