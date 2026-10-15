@@ -7,9 +7,10 @@ export function fmtDuration(seconds: number | null | undefined): string {
   return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
 }
 
-export const fmtNum = (v: number | null | undefined) => (v === null || v === undefined ? '—' : Math.round(v).toLocaleString('en-US'));
-export const fmtPct = (v: number | null | undefined) => (v === null || v === undefined ? '—' : `${Math.round(v)}%`);
-export const fmtMoney = (v: number | null | undefined) => (v === null || v === undefined ? '—' : `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}`);
+const isValid = (v: number | null | undefined): v is number => v !== null && v !== undefined && Number.isFinite(v);
+export const fmtNum = (v: number | null | undefined) => isValid(v) ? Math.round(v).toLocaleString('en-US') : '—';
+export const fmtPct = (v: number | null | undefined) => isValid(v) ? `${Math.round(v)}%` : '—';
+export const fmtMoney = (v: number | null | undefined) => isValid(v) ? `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—';
 
 export function fmtAgo(iso: string | null): string {
   if (!iso) return 'never';

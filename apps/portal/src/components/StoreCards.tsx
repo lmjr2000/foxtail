@@ -10,6 +10,9 @@ import { Bar, Card, Delta, Empty, EstimateTag, Pill, RawDelta, Stat } from './ui
 
 interface P { data: Insights; storeId: string; canManage: boolean }
 
+const safePct = (v: number | null | undefined): string => 
+  v !== null && v !== undefined && Number.isFinite(v) ? `${Math.round(v)}%` : '—';
+
 function SetupLink({ storeId, canManage, text }: { storeId: string; canManage: boolean; text: string | null }) {
   return (
     <div className="flex flex-col items-center justify-center gap-1 py-6 text-ink-4" title={text || undefined}>
@@ -184,7 +187,7 @@ export function StaffingCard({ data, storeId, canManage }: P) {
                 <div className="flex-1"><Bar pct={pct} tone={tone} /></div>
                 <span className="text-[11px] text-ink-4 whitespace-nowrap">{z.targetMin ? `Target ${z.targetMin}${z.targetMax && z.targetMax !== z.targetMin ? `–${z.targetMax}` : ''}` : 'No target'}</span>
               </div>
-              <div className="text-[11px] text-ink-4">{z.coveragePct !== null ? `At or above target ${Math.round(z.coveragePct)}% of the time` : z.avg !== null ? `Average ${z.avg}` : 'No counts yet'}</div>
+              <div className="text-[11px] text-ink-4">{z.coveragePct !== null && Number.isFinite(z.coveragePct) ? `At or above target ${Math.round(z.coveragePct)}% of the time` : z.avg !== null ? `Average ${z.avg}` : 'No counts yet'}</div>
             </div>
           );
         })}
@@ -212,9 +215,9 @@ export function PickupCard({ data, storeId, canManage }: P) {
         <Stat label="Longest pickup wait" value={fmtDuration(p.longest)} />
         <Stat label="Over target" value={p.n ? `${p.overTarget} of ${p.n}` : '—'} />
       </div>
-      {p.coveragePct !== null && (
+      {p.coveragePct !== null && Number.isFinite(p.coveragePct) && (
         <div className="mt-3">
-          <div className="flex justify-between text-[11px] text-ink-3 mb-1"><span>Pickup staffed at target</span><span>{Math.round(p.coveragePct)}%</span></div>
+          <div className="flex justify-between text-[11px] text-ink-3 mb-1"><span>Pickup staffed at target</span><span>{safePct(p.coveragePct)}</span></div>
           <Bar pct={p.coveragePct} tone={p.coveragePct < 70 ? 'bad' : 'ok'} />
         </div>
       )}
@@ -235,10 +238,10 @@ export function SeatingCard({ data, storeId, canManage }: P) {
           <div key={z.zoneId}>
             <div className="flex items-center justify-between text-[13px]">
               <span className="text-ink truncate">{z.label}</span>
-              <span className="text-ink-2 tabular-nums">{z.currentPct !== null ? `${Math.round(z.currentPct)}%` : '—'} <span className="text-ink-4">{z.current ?? '—'}/{z.capacity}</span></span>
+              <span className="text-ink-2 tabular-nums">{safePct(z.currentPct)} <span className="text-ink-4">{z.current ?? '—'}/{z.capacity}</span></span>
             </div>
-            <div className="mt-1"><Bar pct={z.avgPct} tone={z.avgPct !== null && z.avgPct >= hi ? 'bad' : 'accent'} /></div>
-            <div className="text-[11px] text-ink-4">Average {z.avgPct !== null ? `${Math.round(z.avgPct)}%` : '—'} · peak {z.peakPct !== null ? `${Math.round(z.peakPct)}%` : '—'}</div>
+            <div className="mt-1"><Bar pct={z.avgPct} tone={z.avgPct !== null && Number.isFinite(z.avgPct) && z.avgPct >= hi ? 'bad' : 'accent'} /></div>
+            <div className="text-[11px] text-ink-4">Average {safePct(z.avgPct)} · peak {safePct(z.peakPct)}</div>
           </div>
         ))}
       </div>
@@ -253,13 +256,13 @@ export function FlowCard({ data, storeId, canManage }: P) {
   if (!f.stages.some(s => s.count !== null)) return <Card title="Customer flow" testId="card-flow"><SetupLink storeId={storeId} canManage={canManage} text={f.stages[0]?.needs || 'Needs counting areas'} /></Card>;
   const max = Math.max(1, ...f.stages.map(s => s.count ?? 0));
   return (
-    <Card title="Customer flow" right={f.score !== null ? <span className="text-xs text-ink-3">Flow score <b className="text-ink">{Math.round(f.score)}</b></span> : undefined} testId="card-flow">
+    <Card title="Customer flow" right={f.score !== null && Number.isFinite(f.score) ? <span className="text-xs text-ink-3">Flow score <b className="text-ink">{Math.round(f.score)}</b></span> : undefined} testId="card-flow">
       <div className="flex flex-col gap-2">
         {f.stages.map(s => (
           <div key={s.key} className="min-w-0">
             <div className="flex items-center justify-between text-[13px]">
               <span className="text-ink truncate">{s.label}{s.estimate ? <span className="text-ink-4 text-[11px]"> (est.)</span> : null}</span>
-              <span className="text-ink tabular-nums">{s.count ?? '—'} <span className="text-ink-4 text-[11px]">{s.pct !== null ? `${Math.round(s.pct)}%` : ''}</span></span>
+              <span className="text-ink tabular-nums">{s.count ?? '—'} <span className="text-ink-4 text-[11px]">{s.pct !== null && Number.isFinite(s.pct) ? `${Math.round(s.pct)}%` : ''}</span></span>
             </div>
             {s.count !== null
               ? <div className="mt-1 h-3 rounded bg-surface-3 overflow-hidden"><div className="h-full rounded bg-accent" style={{ width: `${(s.count / max) * 100}%` }} /></div>
@@ -345,7 +348,7 @@ export function HoursCard({ data, className = '' }: P & { className?: string }) 
                 <td className={`num ${h.waitAvgSeconds !== null && h.waitAvgSeconds > target ? 'text-bad font-medium' : ''}`}>{fmtDuration(h.waitAvgSeconds)}</td>
                 <td className="num">{h.lineAvg ?? '—'}</td>
                 <td className="num">{h.linePeak ?? '—'}</td>
-                <td className={`num ${h.counterCoveragePct !== null && h.counterCoveragePct < 70 ? 'text-bad font-medium' : ''}`}>{h.counterCoveragePct !== null ? `${Math.round(h.counterCoveragePct)}%` : '—'}</td>
+                <td className={`num ${h.counterCoveragePct !== null && Number.isFinite(h.counterCoveragePct) && h.counterCoveragePct < 70 ? 'text-bad font-medium' : ''}`}>{safePct(h.counterCoveragePct)}</td>
               </tr>
             ))}
           </tbody>
