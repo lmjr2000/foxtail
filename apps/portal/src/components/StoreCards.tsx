@@ -333,7 +333,7 @@ export function InsightsCard({ data }: P) {
 
 export function HoursCard({ data, className = '' }: P & { className?: string }) {
   const hs = data.hourOfDay;
-  if (!hs.length) return null;
+  if (!hs || !hs.length) return null;
   const target = data.config.thresholds.waitTargetSeconds ?? 240;
   return (
     <Card title="By hour of day" className={className} right={<span className="text-xs text-ink-3 hidden md:inline">{data.range.singleDay ? data.range.label : `${data.range.label}, all days combined`}</span>} testId="card-hours">
