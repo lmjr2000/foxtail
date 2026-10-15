@@ -238,7 +238,7 @@ function CountingTab({ storeId, canManage }: { storeId: string; canManage: boole
             <tbody>
               {zones.map((z, i) => (
                 <tr key={z.id || `new-${i}`}>
-                  <td><input className="input !min-h-0 h-8 min-w-[10rem]" disabled={dis} value={z.label} onChange={e => upd(i, { label: e.target.value })} aria-label="Area name" /></td>
+                  <td><input className="input !min-h-0 h-8 w-full md:w-auto" disabled={dis} value={z.label} onChange={e => upd(i, { label: e.target.value })} aria-label="Area name" /></td>
                   <td>
                     <select className="input !min-h-0 h-8 w-auto" disabled={dis} value={z.zoneType} title={ZONE_TYPE_DEFS[z.zoneType].description} onChange={e => upd(i, { zoneType: e.target.value as ZoneType })} aria-label="Area type">
                       {data.catalog.zoneTypes.map(t => <option key={t.type} value={t.type}>{t.label}</option>)}

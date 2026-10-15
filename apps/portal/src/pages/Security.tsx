@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch, useApi, type Alert, type AlertCounts, type AlertDetail, type CameraHealth } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { Loading, ErrorNote, Empty } from '../components/ui';
+import { Loading, ErrorNote, Empty, MobileCard } from '../components/ui';
 
 type AlertFilter = 'open' | 'acknowledged' | 'all';
 
@@ -214,23 +214,43 @@ export default function Security() {
         )}
 
         {data && data.alerts.length > 0 && (
-          <table className="w-full">
-            <thead className="bg-surface-2 text-left text-xs text-ink-3 uppercase">
-              <tr>
-                <th className="py-2 px-4 font-medium">Severity</th>
-                <th className="py-2 px-4 font-medium">Alert</th>
-                <th className="py-2 px-4 font-medium">Store</th>
-                <th className="py-2 px-4 font-medium">Camera</th>
-                <th className="py-2 px-4 font-medium">Time</th>
-                <th className="py-2 px-4 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody>
+          <>
+            {/* Desktop table */}
+            <table className="w-full desktop-table">
+              <thead className="bg-surface-2 text-left text-xs text-ink-3 uppercase">
+                <tr>
+                  <th className="py-2 px-4 font-medium">Severity</th>
+                  <th className="py-2 px-4 font-medium">Alert</th>
+                  <th className="py-2 px-4 font-medium">Store</th>
+                  <th className="py-2 px-4 font-medium">Camera</th>
+                  <th className="py-2 px-4 font-medium">Time</th>
+                  <th className="py-2 px-4 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.alerts.map(alert => (
+                  <AlertRow key={alert.id} alert={alert} onSelect={() => setSelectedAlertId(alert.id)} />
+                ))}
+              </tbody>
+            </table>
+            
+            {/* Mobile cards */}
+            <div className="mobile-list p-4 space-y-3">
               {data.alerts.map(alert => (
-                <AlertRow key={alert.id} alert={alert} onSelect={() => setSelectedAlertId(alert.id)} />
+                <MobileCard
+                  key={alert.id}
+                  title={alert.title}
+                  subtitle={<>{alert.storeName}{alert.cameraName ? ` · ${alert.cameraName}` : ''}</>}
+                  badge={<SeverityBadge severity={alert.severity} />}
+                  rows={[
+                    { label: 'Time', value: formatAge(alert.createdAt) },
+                    { label: 'Status', value: alert.status === 'acknowledged' ? 'Acknowledged' : <span className="text-accent font-medium">Open</span> },
+                  ]}
+                  onClick={() => setSelectedAlertId(alert.id)}
+                />
               ))}
-            </tbody>
-          </table>
+            </div>
+          </>
         )}
       </div>
 
