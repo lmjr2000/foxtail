@@ -6,7 +6,7 @@
  */
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { DAYS, ZONE_TYPE_DEFS, type Day, type OperatingHours, type ZoneType } from '@foxtail/shared';
+import { DAYS, DEFAULT_HOURS, ZONE_TYPE_DEFS, type Day, type OperatingHours, type ZoneType } from '@foxtail/shared';
 import { apiDelete, apiPatch, apiPost, apiPut, useApi, type Franchisee, type Store } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { fmtAgo, fmtDuration } from '../lib/format';
@@ -71,7 +71,7 @@ function DetailsTab({ store, canManage, onSaved }: { store: Store; canManage: bo
   const nav = useNavigate();
   const fr = useApi<{ franchisees: Franchisee[] }>('/foxtail/franchisees');
   const [f, setF] = useState({ name: store.name, storeNumber: store.storeNumber ?? '', address: store.address ?? '', city: store.city ?? '', state: store.state ?? '', postalCode: store.postalCode ?? '', timezone: store.timezone, franchiseeId: store.franchiseeId ?? '' });
-  const [hours, setHours] = useState<OperatingHours>(store.openingHours);
+  const [hours, setHours] = useState<OperatingHours>(store.openingHours ?? DEFAULT_HOURS);
   const [hiding, setHiding] = useState(false);
   const [confirmRename, setConfirmRename] = useState(false);
   const { busy, run, note } = useSaver();
