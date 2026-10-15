@@ -8,7 +8,7 @@ import { download, useApi, type Overview as OverviewData, type OverviewStore } f
 import { useAuth } from '../lib/auth';
 import { fmtAgo, fmtDuration, fmtMoney, fmtNum, fmtPct } from '../lib/format';
 import { RangeBar, useRange } from '../components/RangeBar';
-import { Card, Delta, Empty, ErrorNote, Loading, PageHeader, Pill } from '../components/ui';
+import { Card, Delta, Empty, ErrorNote, Loading, MobileCard, PageHeader, Pill } from '../components/ui';
 
 type SortKey = 'name' | 'entered' | 'avgWaitSeconds' | 'peakLine' | 'counterCoveragePct' | 'walkaways' | 'sales' | 'conversionPct';
 const COLS: Array<{ key: SortKey; label: string; better: 'higher' | 'lower' | null }> = [
@@ -136,8 +136,9 @@ export default function Overview() {
                 </div>
               )}
 
-              <Card title="Stores ranked" right={<span className="text-xs text-ink-3">Click a column to rank by it</span>} testId="ranking">
-                <div className="overflow-x-auto -mx-4">
+              <Card title="Stores ranked" right={<span className="text-xs text-ink-3 hidden md:inline">Click a column to rank by it</span>} testId="ranking">
+                {/* Desktop table */}
+                <div className="overflow-x-auto -mx-4 desktop-table">
                   <table className="table">
                     <thead>
                       <tr>
@@ -159,7 +160,7 @@ export default function Overview() {
                         return (
                           <tr key={s.storeId} className={`hover:bg-surface-2 ${isDemo ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
                             <td className="text-ink-4 tabular-nums">{counting && !isDemo ? i + 1 : ''}</td>
-                            <td className="min-w-[14rem]">
+                            <td>
                               <Link to={`/stores/${s.storeId}?${qs}`} className="font-medium text-ink hover:text-accent-ink">{s.name}</Link>
                               <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-ink-4">
                                 {[s.storeNumber ? `#${s.storeNumber}` : null, [s.city, s.state].filter(Boolean).join(', ') || null, isCorporate ? (s.franchiseeName || 'Corporate') : null].filter(Boolean).join(' · ')}
@@ -179,28 +180,76 @@ export default function Overview() {
                     </tbody>
                   </table>
                 </div>
+                
+                {/* Mobile cards */}
+                <div className="mobile-list space-y-3 -mx-4">
+                  {rows.map((s, i) => {
+                    const counting = s.status === 'ok' || s.status === 'stale';
+                    const isDemo = s.status === 'demo';
+                    const rankNum = counting && !isDemo ? i + 1 : null;
+                    return (
+                      <Link key={s.storeId} to={`/stores/${s.storeId}?${qs}`} className="block">
+                        <MobileCard
+                          title={<>{rankNum && <span className="text-ink-3 mr-2">#{rankNum}</span>}{s.name}</>}
+                          subtitle={[s.storeNumber ? `#${s.storeNumber}` : null, [s.city, s.state].filter(Boolean).join(', ') || null].filter(Boolean).join(' · ') || undefined}
+                          badge={isDemo ? <Pill tone="info">DEMO</Pill> : s.status !== 'ok' ? <Pill tone={STATUS_TONE[s.status]}>{s.statusText}</Pill> : undefined}
+                          rows={[
+                            { label: 'Customers', value: <>{cell(s, 'entered')}{s.enteredDeltaPct !== null && Number.isFinite(s.enteredDeltaPct) && <span className={`ml-1 text-[13px] ${s.enteredDeltaPct >= 0 ? 'text-ok' : 'text-bad'}`}>{s.enteredDeltaPct > 0 ? '+' : ''}{s.enteredDeltaPct}%</span>}</> },
+                            { label: 'Avg wait', value: cell(s, 'avgWaitSeconds'), highlight: s.avgWaitSeconds !== null && s.avgWaitSeconds > s.waitTargetSeconds },
+                            { label: 'Counter staffing', value: cell(s, 'counterCoveragePct'), highlight: s.counterCoveragePct !== null && s.counterCoveragePct < 70 },
+                            ...(s.sales !== null ? [{ label: 'Sales', value: cell(s, 'sales') }] : []),
+                          ]}
+                          onClick={() => {}}
+                          className={isDemo ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}
+                        />
+                      </Link>
+                    );
+                  })}
+                </div>
               </Card>
 
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-                <Card title="Worst hours" className="lg:col-span-3" right={<span className="text-xs text-ink-3">Waits over target or counter short-staffed</span>} testId="worst-hours">
+                <Card title="Worst hours" className="lg:col-span-3" right={<span className="text-xs text-ink-3 hidden md:inline">Waits over target or counter short-staffed</span>} testId="worst-hours">
                   {!data.worstHours || data.worstHours.length === 0 ? <Empty>{t.storesCounting ? 'No hour was over its wait target or short on counter staff.' : 'No counts yet.'}</Empty> : (
-                    <div className="overflow-x-auto -mx-4">
-                      <table className="table">
-                        <thead><tr><th>Store</th><th>Hour</th><th className="num">Avg wait</th><th className="num">Avg line</th><th className="num">Counter</th><th>Why</th></tr></thead>
-                        <tbody>
-                          {data.worstHours.map(w => (
-                            <tr key={`${w.storeId}-${w.hour}`}>
-                              <td><Link to={`/stores/${w.storeId}?${qs}`} className="text-ink hover:text-accent-ink">{w.storeName}</Link></td>
-                              <td className="whitespace-nowrap">{w.label}{w.days > 1 ? <span className="text-ink-4 text-[11px]"> · {w.days} days</span> : null}</td>
-                              <td className={`num ${w.waitAvgSeconds !== null && w.waitAvgSeconds > w.waitTargetSeconds ? 'text-bad font-medium' : ''}`}>{fmtDuration(w.waitAvgSeconds)}</td>
-                              <td className="num">{w.lineAvg ?? '—'}</td>
-                              <td className={`num ${w.counterCoveragePct !== null && w.counterCoveragePct < 70 ? 'text-bad font-medium' : ''}`}>{fmtPct(w.counterCoveragePct)}</td>
-                              <td className="text-xs text-ink-3 min-w-[12rem]">{w.reason}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                    <>
+                      {/* Desktop table */}
+                      <div className="overflow-x-auto -mx-4 desktop-table">
+                        <table className="table">
+                          <thead><tr><th>Store</th><th>Hour</th><th className="num">Avg wait</th><th className="num">Avg line</th><th className="num">Counter</th><th>Why</th></tr></thead>
+                          <tbody>
+                            {data.worstHours.map(w => (
+                              <tr key={`${w.storeId}-${w.hour}`}>
+                                <td><Link to={`/stores/${w.storeId}?${qs}`} className="text-ink hover:text-accent-ink">{w.storeName}</Link></td>
+                                <td className="whitespace-nowrap">{w.label}{w.days > 1 ? <span className="text-ink-4 text-[11px]"> · {w.days} days</span> : null}</td>
+                                <td className={`num ${w.waitAvgSeconds !== null && w.waitAvgSeconds > w.waitTargetSeconds ? 'text-bad font-medium' : ''}`}>{fmtDuration(w.waitAvgSeconds)}</td>
+                                <td className="num">{w.lineAvg ?? '—'}</td>
+                                <td className={`num ${w.counterCoveragePct !== null && w.counterCoveragePct < 70 ? 'text-bad font-medium' : ''}`}>{fmtPct(w.counterCoveragePct)}</td>
+                                <td className="text-xs text-ink-3">{w.reason}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      
+                      {/* Mobile cards */}
+                      <div className="mobile-list space-y-3 -mx-4">
+                        {data.worstHours.map(w => (
+                          <Link key={`${w.storeId}-${w.hour}`} to={`/stores/${w.storeId}?${qs}`} className="block">
+                            <MobileCard
+                              title={w.storeName}
+                              subtitle={<>{w.label}{w.days > 1 ? <span className="text-ink-4"> · {w.days} days</span> : null}</>}
+                              rows={[
+                                { label: 'Avg wait', value: fmtDuration(w.waitAvgSeconds), highlight: w.waitAvgSeconds !== null && w.waitAvgSeconds > w.waitTargetSeconds },
+                                { label: 'Avg line', value: w.lineAvg ?? '—' },
+                                { label: 'Counter', value: fmtPct(w.counterCoveragePct), highlight: w.counterCoveragePct !== null && w.counterCoveragePct < 70 },
+                              ]}
+                              onClick={() => {}}
+                            />
+                            <div className="px-4 pb-3 text-[13px] text-ink-3 -mt-1">{w.reason}</div>
+                          </Link>
+                        ))}
+                      </div>
+                    </>
                   )}
                 </Card>
                 <Card title="Through the day" className="lg:col-span-2" right={<span className="text-xs text-ink-3">All counting stores</span>} testId="by-hour">

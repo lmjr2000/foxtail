@@ -5,9 +5,9 @@ import { ROLE_LABELS, ROLES, type Role } from '@foxtail/shared';
 import { apiDelete, apiPatch, apiPost, useApi, type AdminUser, type Franchisee } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { fmtAgo } from '../lib/format';
-import { Card, Empty, ErrorNote, Field, Loading, Modal, PageHeader, Pill } from '../components/ui';
+import { Card, Empty, ErrorNote, Field, Loading, MobileList, MobileListItem, Modal, PageHeader, Pill } from '../components/ui';
 
-const TABS = [{ key: 'logins', label: 'Logins' }, { key: 'franchisees', label: 'Franchisees' }, { key: 'activity', label: 'Audit log' }] as const;
+const TABS = [{ key: 'logins', label: 'Logins' }, { key: 'franchisees', label: 'Franchisees' }, { key: 'activity', label: 'Activity' }] as const;
 
 export default function Admin() {
   const [params, setParams] = useSearchParams();
@@ -38,26 +38,46 @@ function Logins() {
   const frName = new Map((fr.data?.franchisees || []).map(f => [f.id, f.name]));
   return (
     <>
-      <div className="flex justify-end"><button type="button" className="btn-primary" onClick={() => setEdit('new')}>Add login</button></div>
+      <div className="flex justify-end"><button type="button" className="btn-primary mobile-full-width" onClick={() => setEdit('new')}>Add login</button></div>
       <ErrorNote error={users.error} />
-      {!users.data ? <Loading /> : (
-        <div className="card overflow-x-auto">
-          <table className="table">
-            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Franchisee</th><th>Last sign-in</th><th /></tr></thead>
-            <tbody>
+      {!users.data ? <Loading /> : !users.data.users?.length ? <Empty>No logins yet.</Empty> : (
+        <>
+          {/* Desktop table */}
+          <div className="card overflow-x-auto desktop-table">
+            <table className="table">
+              <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Franchisee</th><th>Last sign-in</th><th /></tr></thead>
+              <tbody>
+                {users.data.users.map(u => (
+                  <tr key={u.id} className={u.disabled ? 'opacity-60' : ''}>
+                    <td className="text-ink">{u.name || '—'}{u.id === me?.id && <span className="text-ink-4 text-xs"> (you)</span>}</td>
+                    <td>{u.email}</td>
+                    <td>{ROLE_LABELS[u.role]}</td>
+                    <td>{u.franchiseeId ? frName.get(u.franchiseeId) ?? '…' : <span className="text-ink-4">—</span>}</td>
+                    <td>{u.disabled ? <Pill tone="neutral">Turned off</Pill> : u.mustChangePassword ? <Pill tone="warn">Password not set</Pill> : fmtAgo(u.lastLoginAt)}</td>
+                    <td className="text-right"><button type="button" className="btn-ghost btn-sm" onClick={() => setEdit(u)}>Edit</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          
+          {/* Mobile list */}
+          <div className="mobile-list">
+            <MobileList>
               {users.data.users.map(u => (
-                <tr key={u.id} className={u.disabled ? 'opacity-60' : ''}>
-                  <td className="text-ink">{u.name || '—'}{u.id === me?.id && <span className="text-ink-4 text-xs"> (you)</span>}</td>
-                  <td>{u.email}</td>
-                  <td>{ROLE_LABELS[u.role]}</td>
-                  <td>{u.franchiseeId ? frName.get(u.franchiseeId) ?? '…' : <span className="text-ink-4">—</span>}</td>
-                  <td>{u.disabled ? <Pill tone="neutral">Turned off</Pill> : u.mustChangePassword ? <Pill tone="warn">Password not set</Pill> : fmtAgo(u.lastLoginAt)}</td>
-                  <td className="text-right"><button type="button" className="btn-ghost btn-sm" onClick={() => setEdit(u)}>Edit</button></td>
-                </tr>
+                <MobileListItem
+                  key={u.id}
+                  title={<span className={u.disabled ? 'opacity-60' : ''}>{u.name || u.email}{u.id === me?.id && <span className="text-ink-4 text-[13px]"> (you)</span>}</span>}
+                  subtitle={<span className={u.disabled ? 'opacity-60' : ''}>{ROLE_LABELS[u.role]}{u.franchiseeId ? ` · ${frName.get(u.franchiseeId) ?? '…'}` : ''}</span>}
+                  badge={u.disabled ? <Pill tone="neutral">Off</Pill> : u.mustChangePassword ? <Pill tone="warn">Password not set</Pill> : undefined}
+                  value={!u.disabled && !u.mustChangePassword ? fmtAgo(u.lastLoginAt) : undefined}
+                  onClick={() => setEdit(u)}
+                  className={u.disabled ? 'opacity-60' : ''}
+                />
               ))}
-            </tbody>
-          </table>
-        </div>
+            </MobileList>
+          </div>
+        </>
       )}
       {edit && <LoginEditor user={edit === 'new' ? null : edit} franchisees={fr.data?.franchisees || []} onClose={() => setEdit(null)}
         onSaved={() => { setEdit(null); users.reload(); }} onSetPassword={u => { setEdit(null); setSetPasswordFor(u); }} />}
@@ -174,24 +194,42 @@ function Franchisees() {
   const [edit, setEdit] = useState<Franchisee | 'new' | null>(null);
   return (
     <>
-      <div className="flex justify-end"><button type="button" className="btn-primary" onClick={() => setEdit('new')}>Add franchisee</button></div>
+      <div className="flex justify-end"><button type="button" className="btn-primary mobile-full-width" onClick={() => setEdit('new')}>Add franchisee</button></div>
       <ErrorNote error={fr.error} />
-      {!fr.data ? <Loading /> : fr.data.franchisees.length === 0 ? <Empty>No franchisees yet. Add one, then assign stores and franchise-owner logins to it.</Empty> : (
-        <div className="card overflow-x-auto">
-          <table className="table">
-            <thead><tr><th>Franchisee</th><th>Contact</th><th className="num">Stores</th><th className="num">Logins</th><th /></tr></thead>
-            <tbody>
+      {!fr.data ? <Loading /> : !fr.data.franchisees?.length ? <Empty>No franchisees yet. Add one, then assign stores and franchise-owner logins to it.</Empty> : (
+        <>
+          {/* Desktop table */}
+          <div className="card overflow-x-auto desktop-table">
+            <table className="table">
+              <thead><tr><th>Franchisee</th><th>Contact</th><th className="num">Stores</th><th className="num">Logins</th><th /></tr></thead>
+              <tbody>
+                {fr.data.franchisees.map(f => (
+                  <tr key={f.id}>
+                    <td className="text-ink font-medium">{f.name}</td>
+                    <td className="text-ink-3">{[f.contactName, f.contactEmail, f.phone].filter(Boolean).join(' · ') || '—'}</td>
+                    <td className="num">{f.storeCount}</td><td className="num">{f.loginCount}</td>
+                    <td className="text-right"><button type="button" className="btn-ghost btn-sm" onClick={() => setEdit(f)}>Edit</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          
+          {/* Mobile list */}
+          <div className="mobile-list">
+            <MobileList>
               {fr.data.franchisees.map(f => (
-                <tr key={f.id}>
-                  <td className="text-ink font-medium">{f.name}</td>
-                  <td className="text-ink-3">{[f.contactName, f.contactEmail, f.phone].filter(Boolean).join(' · ') || '—'}</td>
-                  <td className="num">{f.storeCount}</td><td className="num">{f.loginCount}</td>
-                  <td className="text-right"><button type="button" className="btn-ghost btn-sm" onClick={() => setEdit(f)}>Edit</button></td>
-                </tr>
+                <MobileListItem
+                  key={f.id}
+                  title={f.name}
+                  subtitle={[f.contactName, f.contactEmail].filter(Boolean).join(' · ') || undefined}
+                  detail={`${f.storeCount} store${f.storeCount === 1 ? '' : 's'} · ${f.loginCount} login${f.loginCount === 1 ? '' : 's'}`}
+                  onClick={() => setEdit(f)}
+                />
               ))}
-            </tbody>
-          </table>
-        </div>
+            </MobileList>
+          </div>
+        </>
       )}
       {edit && <FranchiseeEditor f={edit === 'new' ? null : edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); fr.reload(); }} />}
     </>
@@ -227,23 +265,41 @@ function Activity() {
   const { data, error } = useApi<{ entries: Array<{ at: string; user: string | null; action: string; store: string | null; detail: Record<string, unknown> }> }>('/foxtail/audit?limit=200');
   if (!data) return error ? <ErrorNote error={error} /> : <Loading />;
   return (
-    <Card title="Audit log">
+    <Card title="Recent activity">
       {data.entries.length === 0 ? <Empty>No changes recorded yet.</Empty> : (
-        <div className="overflow-x-auto -mx-4">
-          <table className="table">
-            <thead><tr><th>When</th><th>Who</th><th>What</th><th>Store</th></tr></thead>
-            <tbody>
+        <>
+          {/* Desktop table */}
+          <div className="overflow-x-auto -mx-4 desktop-table">
+            <table className="table">
+              <thead><tr><th>When</th><th>Who</th><th>What</th><th>Store</th></tr></thead>
+              <tbody>
+                {data.entries.map((e, i) => (
+                  <tr key={i}>
+                    <td className="whitespace-nowrap text-ink-3">{new Date(e.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
+                    <td>{e.user ?? '—'}</td>
+                    <td><code className="text-xs">{e.action}</code></td>
+                    <td>{e.store ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          
+          {/* Mobile list */}
+          <div className="mobile-list -mx-4">
+            <MobileList>
               {data.entries.map((e, i) => (
-                <tr key={i}>
-                  <td className="whitespace-nowrap text-ink-3">{new Date(e.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
-                  <td>{e.user ?? '—'}</td>
-                  <td><code className="text-xs">{e.action}</code></td>
-                  <td>{e.store ?? '—'}</td>
-                </tr>
+                <MobileListItem
+                  key={i}
+                  title={<code className="text-[15px] font-normal">{e.action}</code>}
+                  subtitle={e.user ?? 'Unknown user'}
+                  detail={<>{new Date(e.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}{e.store ? ` · ${e.store}` : ''}</>}
+                  accessory={null}
+                />
               ))}
-            </tbody>
-          </table>
-        </div>
+            </MobileList>
+          </div>
+        </>
       )}
     </Card>
   );

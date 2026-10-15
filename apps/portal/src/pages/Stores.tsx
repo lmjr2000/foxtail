@@ -4,7 +4,7 @@ import { DEFAULT_HOURS, DEFAULT_TIMEZONE } from '@foxtail/shared';
 import { apiPost, useApi, type Franchisee, type Store, type StoreListItem } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { fmtAgo, storePlace } from '../lib/format';
-import { Empty, ErrorNote, Field, Loading, Modal, PageHeader, Pill } from '../components/ui';
+import { Empty, ErrorNote, Field, Loading, MobileCard, Modal, PageHeader, Pill } from '../components/ui';
 
 function countingBadge(s: StoreListItem) {
   if (!s.counting.measurable) return <Pill tone="neutral">Counting not set up</Pill>;
@@ -31,8 +31,10 @@ export default function Stores() {
       {!data && !error && <Loading />}
       {data && (data.stores.length === 0 ? <Empty>{canManage ? 'No stores yet. Add the first one.' : 'No stores are assigned to your login yet.'}</Empty> : (
         <>
-          {data.stores.length > 8 && <input className="input max-w-sm" placeholder="Search stores" aria-label="Search stores" value={q} onChange={e => setQ(e.target.value)} />}
-          <div className="card overflow-x-auto">
+          {data.stores.length > 8 && <input className="input max-w-sm md:max-w-sm w-full" placeholder="Search stores" aria-label="Search stores" value={q} onChange={e => setQ(e.target.value)} />}
+          
+          {/* Desktop table */}
+          <div className="card overflow-x-auto desktop-table">
             <table className="table">
               <thead><tr><th>Store</th><th>Location</th>{isCorporate && <th>Franchisee</th>}<th>Cameras</th><th>Counting</th><th /></tr></thead>
               <tbody>
@@ -51,6 +53,23 @@ export default function Stores() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile cards */}
+          <div className="mobile-list space-y-3">
+            {list.map(s => (
+              <Link key={s.id} to={`/stores/${s.id}`} className="block">
+                <MobileCard
+                  title={s.name}
+                  subtitle={[storePlace(s), isCorporate ? (s.franchiseeName || 'Corporate') : null].filter(Boolean).join(' · ') || undefined}
+                  badge={countingBadge(s)}
+                  rows={s.cameras.total ? [
+                    { label: 'Cameras', value: <><span className="text-ok">{s.cameras.online}</span>{s.cameras.offline > 0 && <span className="text-bad"> · {s.cameras.offline} offline</span>}<span className="text-ink-4"> / {s.cameras.total}</span></> }
+                  ] : undefined}
+                  onClick={() => {}}
+                />
+              </Link>
+            ))}
           </div>
         </>
       ))}

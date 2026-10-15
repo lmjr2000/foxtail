@@ -155,3 +155,108 @@ export function Field({ label, help, children }: { label: string; help?: ReactNo
     </label>
   );
 }
+
+export function MobileList({ children, header, className = '' }: { children: ReactNode; header?: string; className?: string }) {
+  return (
+    <div className={`ios-list ${className}`}>
+      {header && <div className="ios-list-header">{header}</div>}
+      <div>{children}</div>
+    </div>
+  );
+}
+
+export function MobileListItem({ 
+  title, 
+  subtitle, 
+  detail,
+  value, 
+  onClick, 
+  accessory,
+  badge,
+  left,
+  className = '' 
+}: { 
+  title: ReactNode; 
+  subtitle?: ReactNode; 
+  detail?: ReactNode;
+  value?: ReactNode; 
+  onClick?: () => void;
+  accessory?: ReactNode;
+  badge?: ReactNode;
+  left?: ReactNode;
+  className?: string;
+}) {
+  const Wrapper = onClick ? 'button' : 'div';
+  return (
+    <Wrapper 
+      type={onClick ? 'button' : undefined}
+      onClick={onClick}
+      className={`ios-list-item ${onClick ? 'ios-list-item-clickable' : ''} ${className}`}
+    >
+      {left && <div className="shrink-0">{left}</div>}
+      <div className="ios-list-item-content">
+        <div className="flex items-center gap-2">
+          <span className="ios-list-item-title">{title}</span>
+          {badge}
+        </div>
+        {subtitle && <div className="ios-list-item-subtitle">{subtitle}</div>}
+        {detail && <div className="ios-list-item-detail">{detail}</div>}
+      </div>
+      {value && <div className="ios-list-item-value">{value}</div>}
+      {accessory ?? (onClick && <span className="ios-list-item-accessory ios-chevron" />)}
+    </Wrapper>
+  );
+}
+
+export function MobileCard({
+  title,
+  subtitle,
+  badge,
+  rows,
+  actions,
+  onClick,
+  className = ''
+}: {
+  title: ReactNode;
+  subtitle?: ReactNode;
+  badge?: ReactNode;
+  rows?: Array<{ label: string; value: ReactNode; highlight?: boolean }>;
+  actions?: ReactNode;
+  onClick?: () => void;
+  className?: string;
+}) {
+  const content = (
+    <>
+      <div className="mobile-card-header">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="mobile-card-title">{title}</span>
+            {badge}
+          </div>
+          {subtitle && <div className="mobile-card-subtitle">{subtitle}</div>}
+        </div>
+        {onClick && <span className="ios-list-item-accessory ios-chevron mt-1" />}
+      </div>
+      {rows && rows.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-line">
+          {rows.map((r, i) => (
+            <div key={i} className="mobile-card-row">
+              <span className="mobile-card-label">{r.label}</span>
+              <span className={`mobile-card-value ${r.highlight ? 'text-bad font-medium' : ''}`}>{r.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {actions && <div className="mt-3 pt-3 border-t border-line flex flex-wrap gap-2">{actions}</div>}
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={`mobile-card text-left w-full active:bg-surface-2 transition-colors ${className}`}>
+        {content}
+      </button>
+    );
+  }
+  return <div className={`mobile-card ${className}`}>{content}</div>;
+}

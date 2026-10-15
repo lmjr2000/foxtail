@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Insights, MetricValue } from '../lib/api';
 import { fmtDuration } from '../lib/format';
-import { Bar, Card, Delta, Empty, EstimateTag, Pill, RawDelta, Stat } from './ui';
+import { Bar, Card, Delta, Empty, EstimateTag, MobileCard, Pill, RawDelta, Stat } from './ui';
 
 interface P { data: Insights; storeId: string; canManage: boolean }
 
@@ -333,11 +333,12 @@ export function InsightsCard({ data }: P) {
 
 export function HoursCard({ data, className = '' }: P & { className?: string }) {
   const hs = data.hourOfDay;
-  if (!hs.length) return null;
+  if (!hs || !hs.length) return null;
   const target = data.config.thresholds.waitTargetSeconds ?? 240;
   return (
-    <Card title="By hour of day" className={className} right={<span className="text-xs text-ink-3">{data.range.singleDay ? data.range.label : `${data.range.label}, all days combined`}</span>} testId="card-hours">
-      <div className="overflow-x-auto -mx-4">
+    <Card title="By hour of day" className={className} right={<span className="text-xs text-ink-3 hidden md:inline">{data.range.singleDay ? data.range.label : `${data.range.label}, all days combined`}</span>} testId="card-hours">
+      {/* Desktop table */}
+      <div className="overflow-x-auto -mx-4 desktop-table">
         <table className="table">
           <thead><tr><th>Hour</th><th className="num">Entered</th><th className="num">Avg wait</th><th className="num">Avg line</th><th className="num">Peak line</th><th className="num">Counter staffing</th></tr></thead>
           <tbody>
@@ -353,6 +354,22 @@ export function HoursCard({ data, className = '' }: P & { className?: string }) 
             ))}
           </tbody>
         </table>
+      </div>
+      
+      {/* Mobile cards - show as compact list */}
+      <div className="mobile-list space-y-2 -mx-4">
+        {hs.map(h => (
+          <MobileCard
+            key={h.hour}
+            title={h.label}
+            rows={[
+              { label: 'Entered', value: h.entered ?? '—' },
+              { label: 'Avg wait', value: fmtDuration(h.waitAvgSeconds), highlight: h.waitAvgSeconds !== null && h.waitAvgSeconds > target },
+              { label: 'Line avg/peak', value: `${h.lineAvg ?? '—'} / ${h.linePeak ?? '—'}` },
+              { label: 'Counter', value: safePct(h.counterCoveragePct), highlight: h.counterCoveragePct !== null && Number.isFinite(h.counterCoveragePct) && h.counterCoveragePct < 70 },
+            ]}
+          />
+        ))}
       </div>
     </Card>
   );

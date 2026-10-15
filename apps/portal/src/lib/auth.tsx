@@ -33,8 +33,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUnauthorizedHandler(signOut);
     if (!getToken()) { setReady(true); return; }
     const wasDemo = getDemoFlag();
-    apiFetch<{ user: SessionUser }>('/auth/me')
-      .then(r => { setUser(r.user); setIsDemo(wasDemo); })
+    apiFetch<SessionUser>('/auth/me')
+      .then(r => { setUser(r); setIsDemo(wasDemo); })
       .catch(() => { setToken(null); setDemoFlag(false); })
       .finally(() => setReady(true));
   }, [signOut]);

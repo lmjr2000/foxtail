@@ -8,23 +8,24 @@
   (bg-surface, text-ink-2, border-line, text-ok, bg-warn-soft, ...) via tailwind.config.js.
   Brand (from foxtailcoffee.com): black and white with the Foxtail teal accent (#4F979A / #69C9CD)
   and rust (#9E3B1B) as a secondary. The accent used behind white text is darkened to #3B7B7E so
-  button labels keep 4.5:1 contrast. Type: Gotham where installed, else Montserrat / system sans.
+  button labels keep 4.5:1 contrast.
+  Type: SF Pro / system-ui for iOS-native feel, then Gotham/Montserrat for branding.
 */
 @layer base {
   :root {
     color-scheme: light;
     --radius-sm: 4px;
-    --radius-control: 8px;
+    --radius-control: 10px;
     --radius-panel: 12px;
     --radius-full: 9999px;
     --control-height-sm: 32px;
     --control-height-md: 40px;
     --control-height-lg: 44px;
-    --font-size-xl: 24px;
-    --font-size-lg: 20px;
-    --font-size-base: 16px;
-    --font-size-sm: 14px;
-    --font-size-xs: 12px;
+    --font-size-xl: 28px;
+    --font-size-lg: 22px;
+    --font-size-base: 17px;
+    --font-size-sm: 15px;
+    --font-size-xs: 13px;
 
     --c-page: #f6f6f5;
     --c-surface: #ffffff;
@@ -126,9 +127,13 @@
     text-size-adjust: 100%;
   }
   body {
-    @apply bg-page text-ink-2 font-sans;
-    font-size: 16px;
-    line-height: 1.5;
+    @apply bg-page text-ink-2;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', system-ui, 'Gotham', 'Montserrat', sans-serif;
+    font-size: 17px;
+    line-height: 1.47;
+  }
+  @media (max-width: 767px) {
+    body { font-size: 17px; }
   }
   ::selection { background-color: var(--c-accent-line); color: var(--c-ink); }
   h1, h2, h3, h4 { @apply text-ink; text-wrap: balance; }
@@ -170,13 +175,16 @@
   .animate-slideUp { animation: slideUp 0.25s ease-out; }
 
   .page-title {
-    @apply text-xl sm:text-2xl font-extrabold tracking-tight text-ink;
-    font-family: 'Gotham', 'Montserrat', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-    letter-spacing: 0.01em;
+    @apply text-2xl md:text-3xl font-bold tracking-tight text-ink;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, 'Gotham', 'Montserrat', sans-serif;
+    letter-spacing: -0.01em;
   }
-  .page-subtitle { @apply mt-1 text-sm text-ink-3; }
-  .section-title { @apply text-base font-semibold text-ink; }
-  .eyebrow { @apply text-xs font-semibold uppercase tracking-wider text-ink-3; }
+  @media (max-width: 767px) {
+    .page-title { font-size: 34px; font-weight: 700; letter-spacing: 0.37px; line-height: 1.12; }
+  }
+  .page-subtitle { @apply mt-1 text-[15px] text-ink-3; }
+  .section-title { @apply text-[17px] font-semibold text-ink; }
+  .eyebrow { @apply text-[13px] font-semibold uppercase tracking-wider text-ink-3; }
 
   .card { @apply bg-surface border border-line shadow-card; border-radius: var(--radius-card); }
   .card-header { @apply px-4 py-3 border-b border-line flex items-center justify-between gap-3; }
@@ -248,4 +256,100 @@
   .table td { @apply px-3 py-2.5 border-b border-line text-ink-2 align-middle; }
   .table tbody tr:last-child td { @apply border-b-0; }
   .table .num { @apply text-right tabular-nums; }
+
+  /* iOS-style grouped inset lists for mobile */
+  .ios-list {
+    @apply bg-surface rounded-xl overflow-hidden;
+    margin: 0 -1rem;
+  }
+  @media (min-width: 768px) { .ios-list { margin: 0; } }
+  .ios-list-header {
+    @apply text-[13px] font-normal text-ink-3 uppercase tracking-wide px-4 pt-4 pb-2;
+  }
+  .ios-list-item {
+    @apply flex items-center gap-3 px-4 min-h-[44px] bg-surface border-b border-line last:border-b-0 active:bg-surface-2 transition-colors;
+  }
+  .ios-list-item-clickable {
+    @apply cursor-pointer;
+  }
+  .ios-list-item-content {
+    @apply flex-1 min-w-0 py-3;
+  }
+  .ios-list-item-title {
+    @apply text-[17px] text-ink truncate leading-snug;
+  }
+  .ios-list-item-subtitle {
+    @apply text-[15px] text-ink-3 truncate leading-snug;
+  }
+  .ios-list-item-detail {
+    @apply text-[13px] text-ink-4 truncate;
+  }
+  .ios-list-item-value {
+    @apply text-[17px] text-ink-3 tabular-nums shrink-0;
+  }
+  .ios-list-item-accessory {
+    @apply shrink-0 text-ink-4;
+  }
+  .ios-chevron {
+    width: 8px;
+    height: 13px;
+    display: inline-block;
+    background: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 13'%3E%3Cpath fill='currentColor' d='M1.5 0L0 1.5 5 6.5 0 11.5 1.5 13 8 6.5z'/%3E%3C/svg%3E") no-repeat center;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 13'%3E%3Cpath fill='currentColor' d='M1.5 0L0 1.5 5 6.5 0 11.5 1.5 13 8 6.5z'/%3E%3C/svg%3E") no-repeat center;
+  }
+
+  /* Mobile card - used instead of tables on small screens */
+  .mobile-card {
+    @apply bg-surface rounded-xl p-4 border border-line;
+  }
+  .mobile-card + .mobile-card {
+    @apply mt-3;
+  }
+  .mobile-card-header {
+    @apply flex items-start justify-between gap-3 mb-2;
+  }
+  .mobile-card-title {
+    @apply text-[17px] font-semibold text-ink leading-tight;
+  }
+  .mobile-card-subtitle {
+    @apply text-[15px] text-ink-3 mt-0.5;
+  }
+  .mobile-card-row {
+    @apply flex items-center justify-between py-2 border-t border-line first:border-t-0 first:pt-0;
+  }
+  .mobile-card-label {
+    @apply text-[15px] text-ink-3;
+  }
+  .mobile-card-value {
+    @apply text-[15px] text-ink tabular-nums text-right;
+  }
+
+  /* Hide desktop tables on mobile, show iOS lists instead */
+  @media (max-width: 767px) {
+    .desktop-table { display: none !important; }
+    .mobile-list { display: block !important; }
+  }
+  @media (min-width: 768px) {
+    .desktop-table { display: block; }
+    .mobile-list { display: none !important; }
+  }
+
+  /* Full-width buttons on mobile */
+  @media (max-width: 767px) {
+    .mobile-full-width { width: 100%; }
+  }
+
+  /* iOS-style segmented control for mobile */
+  .ios-segment {
+    @apply inline-flex items-center p-0.5 gap-0.5 bg-surface-2 rounded-lg;
+    min-height: 32px;
+  }
+  .ios-segment-item {
+    @apply inline-flex items-center justify-center px-4 text-[13px] font-medium text-ink-2 whitespace-nowrap rounded-md transition-all;
+    min-height: 28px;
+  }
+  .ios-segment-item-active {
+    @apply bg-surface text-ink shadow-sm;
+  }
 }

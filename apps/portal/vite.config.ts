@@ -3,18 +3,18 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const omniBase = env.VITE_OMNI_API_BASE_URL || 'http://localhost:3001/api/v1';
   
-  // Only set up proxy for dev server when we have an absolute URL
-  const isAbsoluteUrl = omniBase.startsWith('http://') || omniBase.startsWith('https://');
-  const omniOrigin = isAbsoluteUrl ? new URL(omniBase).origin : null;
+  // VITE_API_PROXY_TARGET sets the proxy target for /api/v1 requests (default: local API server)
+  // VITE_OMNI_API_BASE_URL sets what the frontend uses for API calls (should be /api/v1 for proxy to work)
+  const proxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:3001';
+  const useProxy = proxyTarget.startsWith('http://') || proxyTarget.startsWith('https://');
 
   return {
     plugins: [react()],
-    server: omniOrigin ? {
+    server: useProxy ? {
       proxy: {
-        '/api/v1': { target: omniOrigin, changeOrigin: true },
-        '/hls': { target: omniOrigin, changeOrigin: true },
+        '/api/v1': { target: proxyTarget, changeOrigin: true },
+        '/hls': { target: proxyTarget, changeOrigin: true },
       },
     } : {},
     build: {
