@@ -151,6 +151,24 @@
 }
 
 @layer components {
+  /* Safe area insets for notched devices */
+  .safe-top { padding-top: env(safe-area-inset-top, 0); }
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0); }
+  .safe-left { padding-left: env(safe-area-inset-left, 0); }
+  .safe-right { padding-right: env(safe-area-inset-right, 0); }
+
+  /* Animations */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(100%); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
+  .animate-slideUp { animation: slideUp 0.25s ease-out; }
+
   .page-title {
     @apply text-xl sm:text-2xl font-extrabold tracking-tight text-ink;
     font-family: 'Gotham', 'Montserrat', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
@@ -174,31 +192,35 @@
   .badge-accent { @apply bg-accent-soft text-accent-ink; }
 
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap px-4 text-sm font-semibold text-white bg-accent hover:bg-accent-hover transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap px-4 text-sm font-semibold text-white bg-accent hover:bg-accent-hover active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
     border-radius: var(--radius-control);
-    min-height: var(--control-height-md);
+    min-height: var(--control-height-lg);
+    -webkit-tap-highlight-color: transparent;
   }
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap px-4 text-sm font-medium text-ink-2 bg-surface hover:bg-surface-2 active:bg-surface-3 border border-line-2 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap px-4 text-sm font-medium text-ink-2 bg-surface hover:bg-surface-2 active:bg-surface-3 active:scale-[0.98] border border-line-2 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
     border-radius: var(--radius-control);
-    min-height: var(--control-height-md);
+    min-height: var(--control-height-lg);
+    -webkit-tap-highlight-color: transparent;
   }
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap px-3 text-sm font-medium text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap px-3 text-sm font-medium text-ink-2 hover:text-ink hover:bg-surface-2 active:bg-surface-3 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
     border-radius: var(--radius-control);
-    min-height: var(--control-height-md);
+    min-height: var(--control-height-lg);
+    -webkit-tap-highlight-color: transparent;
   }
   .btn-danger {
-    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap px-4 text-sm font-medium text-white bg-bad-fill hover:bg-bad-fill-hover transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap px-4 text-sm font-medium text-white bg-bad-fill hover:bg-bad-fill-hover active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
     border-radius: var(--radius-control);
-    min-height: var(--control-height-md);
+    min-height: var(--control-height-lg);
+    -webkit-tap-highlight-color: transparent;
   }
-  .btn-sm { min-height: var(--control-height-sm) !important; @apply px-3 text-xs; }
+  .btn-sm { min-height: var(--control-height-md) !important; @apply px-3 text-xs; }
 
   .input {
-    @apply block w-full px-3 text-sm text-ink bg-surface border border-line-2 placeholder:text-ink-4 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-shadow duration-150 disabled:opacity-60;
+    @apply block w-full px-3 text-base sm:text-sm text-ink bg-surface border border-line-2 placeholder:text-ink-4 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-shadow duration-150 disabled:opacity-60;
     border-radius: var(--radius-control);
-    min-height: var(--control-height-md);
+    min-height: var(--control-height-lg);
   }
   select.input { padding-right: 2.5rem !important; cursor: pointer; }
   textarea.input { @apply py-2; }

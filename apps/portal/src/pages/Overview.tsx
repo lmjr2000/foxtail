@@ -2,11 +2,11 @@
  * Corporate overview (every store) and franchise-owner home (their stores). Same page: the server
  * decides which stores are included. Stores that are not counting are listed but never ranked or totalled.
  */
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { download, useApi, type Overview as OverviewData, type OverviewStore } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { fmtDuration, fmtMoney, fmtNum, fmtPct } from '../lib/format';
+import { fmtAgo, fmtDuration, fmtMoney, fmtNum, fmtPct } from '../lib/format';
 import { RangeBar, useRange } from '../components/RangeBar';
 import { Card, Delta, Empty, ErrorNote, Loading, PageHeader, Pill } from '../components/ui';
 
@@ -53,12 +53,12 @@ export default function Overview() {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'entered', dir: -1 });
   const [busy, setBusy] = useState<string | null>(null);
   const [dlError, setDlError] = useState<string | null>(null);
+  const [autoSwitched, setAutoSwitched] = useState(false);
 
   const rows = useMemo(() => {
     if (!data) return [];
     const counting = (s: OverviewStore) => s.status === 'ok' || s.status === 'stale';
     return [...data.stores].sort((a, b) => {
-      // Stores that are not counting always sit at the bottom: they are listed, never ranked.
       if (counting(a) !== counting(b)) return counting(a) ? -1 : 1;
       if (sort.key === 'name') return a.name.localeCompare(b.name) * sort.dir;
       const va = a[sort.key] as number | null, vb = b[sort.key] as number | null;
@@ -68,6 +68,22 @@ export default function Overview() {
       return (va - vb) * sort.dir;
     });
   }, [data, sort]);
+
+  const lastSampleAt = useMemo(() => {
+    if (!data) return null;
+    const times = data.stores.map(s => s.lastSampleAt).filter((t): t is string => !!t);
+    if (!times.length) return null;
+    return times.reduce((a, b) => (new Date(a) > new Date(b) ? a : b));
+  }, [data]);
+
+  const isClosedToday = range === 'today' && data && data.totals.storesCounting === 0 && data.totals.stores > 0;
+
+  useEffect(() => {
+    if (isClosedToday && !autoSwitched && lastSampleAt) {
+      setAutoSwitched(true);
+      setRange('yesterday');
+    }
+  }, [isClosedToday, autoSwitched, lastSampleAt, setRange]);
 
   const dl = async (kind: 'pdf' | 'csv') => {
     setBusy(kind); setDlError(null);
@@ -93,14 +109,32 @@ export default function Overview() {
         <>
           {t.stores === 0 ? <Empty>{isCorporate ? 'No stores yet. Add the first one under Stores.' : 'No stores are assigned to your login yet. Contact Foxtail corporate.'}</Empty> : (
             <>
-              {t.storesCounting === 0 && <div className="callout callout-info">None of these stores has counting running in this period, so there are no totals to show yet.</div>}
-              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 max-sm:[&>*:last-child:nth-child(odd)]:col-span-2">
-                <Tile label="Customers entered" value={fmtNum(t.entered)} sub={t.enteredDeltaPct !== null ? <Delta pct={t.enteredDeltaPct} good={t.enteredDeltaPct === 0 ? null : t.enteredDeltaPct > 0} direction={t.enteredDeltaPct > 0 ? 'up' : t.enteredDeltaPct < 0 ? 'down' : 'flat'} label={data.range.compareLabel} /> : undefined} />
-                <Tile label="Average wait" value={fmtDuration(t.avgWaitSeconds)} sub={t.waitN ? `${fmtNum(t.waitN)} waits measured` : undefined} />
-                <Tile label="Front-counter staffing" value={fmtPct(t.counterCoveragePct)} sub="Average of stores (estimate)" />
-                <Tile label="Left before service" value={fmtNum(t.walkaways)} sub={t.queuers ? `of ${fmtNum(t.queuers)} who waited` : undefined} />
-                <Tile label="Register sales" value={fmtMoney(t.sales)} sub={t.storesWithPos ? `${t.storesWithPos} store${t.storesWithPos === 1 ? '' : 's'} with POS data${t.conversionPct !== null ? ` · ${t.conversionPct}% traffic → sale` : ''}` : 'No POS data uploaded'} />
-              </div>
+              {t.storesCounting === 0 ? (
+                <div className="card p-8 text-center">
+                  <div className="text-4xl mb-3">{range === 'today' ? '🌙' : '📊'}</div>
+                  <h3 className="text-lg font-semibold text-ink mb-2">
+                    {range === 'today' ? 'Stores are closed' : 'No counting data'}
+                  </h3>
+                  <p className="text-sm text-ink-3 max-w-md mx-auto mb-4">
+                    {range === 'today' && lastSampleAt
+                      ? `All stores are currently closed. Last counted ${fmtAgo(lastSampleAt)}.`
+                      : 'None of these stores has counting running in this period.'}
+                  </p>
+                  {range === 'today' && (
+                    <button type="button" onClick={() => setRange('yesterday')} className="btn-secondary">
+                      View yesterday
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 max-sm:[&>*:last-child:nth-child(odd)]:col-span-2">
+                  <Tile label="Customers entered" value={fmtNum(t.entered)} sub={t.enteredDeltaPct !== null && Number.isFinite(t.enteredDeltaPct) ? <Delta pct={t.enteredDeltaPct} good={t.enteredDeltaPct === 0 ? null : t.enteredDeltaPct > 0} direction={t.enteredDeltaPct > 0 ? 'up' : t.enteredDeltaPct < 0 ? 'down' : 'flat'} label={data.range.compareLabel} /> : undefined} />
+                  <Tile label="Average wait" value={fmtDuration(t.avgWaitSeconds)} sub={t.waitN ? `${fmtNum(t.waitN)} waits measured` : undefined} />
+                  <Tile label="Front-counter staffing" value={fmtPct(t.counterCoveragePct)} sub="Average of stores (estimate)" />
+                  <Tile label="Left before service" value={fmtNum(t.walkaways)} sub={t.queuers ? `of ${fmtNum(t.queuers)} who waited` : undefined} />
+                  <Tile label="Register sales" value={fmtMoney(t.sales)} sub={t.storesWithPos ? `${t.storesWithPos} store${t.storesWithPos === 1 ? '' : 's'} with POS data${t.conversionPct !== null && Number.isFinite(t.conversionPct) ? ` · ${Math.round(t.conversionPct)}% traffic → sale` : ''}` : 'No POS data uploaded'} />
+                </div>
+              )}
 
               <Card title="Stores ranked" right={<span className="text-xs text-ink-3">Click a column to rank by it</span>} testId="ranking">
                 <div className="overflow-x-auto -mx-4">
@@ -136,7 +170,7 @@ export default function Overview() {
                             {COLS.map(c => (
                               <td key={c.key} className={`num ${c.key === 'avgWaitSeconds' && s.avgWaitSeconds !== null && s.avgWaitSeconds > s.waitTargetSeconds ? 'text-bad font-medium' : ''} ${c.key === 'counterCoveragePct' && s.counterCoveragePct !== null && s.counterCoveragePct < 70 ? 'text-bad font-medium' : ''}`}>
                                 {cell(s, c.key)}
-                                {c.key === 'entered' && s.enteredDeltaPct !== null && <div className={`text-[11px] ${s.enteredDeltaPct >= 0 ? 'text-ok' : 'text-bad'}`}>{s.enteredDeltaPct > 0 ? '+' : ''}{s.enteredDeltaPct}%</div>}
+                                {c.key === 'entered' && s.enteredDeltaPct !== null && Number.isFinite(s.enteredDeltaPct) && <div className={`text-[11px] ${s.enteredDeltaPct >= 0 ? 'text-ok' : 'text-bad'}`}>{s.enteredDeltaPct > 0 ? '+' : ''}{s.enteredDeltaPct}%</div>}
                               </td>
                             ))}
                           </tr>

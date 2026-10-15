@@ -60,11 +60,12 @@ export function Card({ title, right, children, className = '', testId }: { title
 
 export function Delta({ pct, good, direction, label }: { pct: number | null; good: boolean | null; direction: 'up' | 'down' | 'flat' | null; label?: string | null }) {
   if (direction === null) return null;
+  const validPct = pct !== null && Number.isFinite(pct);
   const color = good === null ? 'text-ink-3' : good ? 'text-ok' : 'text-bad';
   const arrow = direction === 'up' ? '↑' : direction === 'down' ? '↓' : '→';
   return (
     <span className={`text-xs font-medium ${color} whitespace-nowrap`}>
-      {arrow} {pct !== null ? `${Math.abs(pct)}%` : direction === 'flat' ? 'same' : ''}
+      {arrow} {validPct ? `${Math.abs(pct)}%` : direction === 'flat' ? 'same' : ''}
       {label ? <span className="text-ink-4 font-normal"> vs {label}</span> : null}
     </span>
   );
@@ -72,7 +73,7 @@ export function Delta({ pct, good, direction, label }: { pct: number | null; goo
 
 /** Change badge from two raw numbers. */
 export function RawDelta({ value, compare, lowerIsBetter = false }: { value: number | null; compare: number | null; lowerIsBetter?: boolean }) {
-  if (value === null || compare === null) return null;
+  if (value === null || compare === null || !Number.isFinite(value) || !Number.isFinite(compare)) return null;
   const direction = value > compare ? 'up' : value < compare ? 'down' : 'flat';
   const pct = compare !== 0 ? Math.round(((value - compare) / Math.abs(compare)) * 100) : null;
   const good = direction === 'flat' ? null : (direction === 'down') === lowerIsBetter;
