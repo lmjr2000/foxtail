@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './lib/auth';
 import Layout from './components/Layout';
 import { Loading } from './components/ui';
@@ -12,10 +12,14 @@ import StoreSettings from './pages/StoreSettings';
 import Reports from './pages/Reports';
 import Admin from './pages/Admin';
 import Cameras from './pages/Cameras';
+import ProspectLink from './pages/ProspectLink';
+import { isInvitePath } from '@foxtail/shared';
 
 export default function App() {
   const { user, ready, isCorporate, canManage } = useAuth();
+  const location = useLocation();
   if (!ready) return <div className="p-8"><Loading /></div>;
+  if (isInvitePath(location.pathname)) return <ProspectLink />;
   if (!user) return <Login />;
   if (user.mustChangePassword) return <Account forced />;
   return (

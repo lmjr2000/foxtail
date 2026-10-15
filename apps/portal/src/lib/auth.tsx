@@ -16,6 +16,7 @@ interface AuthState {
   signOut: () => void;
   login: (email: string, password: string) => Promise<SessionUser>;
   demoLogin: (role: Role) => Promise<SessionUser>;
+  inviteLogin: (token: string) => Promise<SessionUser>;
 }
 
 const Ctx = createContext<AuthState | null>(null);
@@ -50,11 +51,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return r.user;
   }, [signIn]);
 
+  const inviteLogin = useCallback(async (token: string) => {
+    const r = await apiPost<{ token: string; user: SessionUser }>('/foxtail/auth/invite', { token });
+    signIn(r.token, r.user, true);
+    return r.user;
+  }, [signIn]);
+
   const value = useMemo<AuthState>(() => ({
-    user, ready, isDemo, signIn, signOut, login, demoLogin,
+    user, ready, isDemo, signIn, signOut, login, demoLogin, inviteLogin,
     isCorporate: !!user && isCorporate(user.role),
     canManage: !!user && canManage(user.role),
-  }), [user, ready, isDemo, signIn, signOut, login, demoLogin]);
+  }), [user, ready, isDemo, signIn, signOut, login, demoLogin, inviteLogin]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
