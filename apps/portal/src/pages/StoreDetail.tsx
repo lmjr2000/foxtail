@@ -1,8 +1,9 @@
 /** One store's dashboard: the same page for corporate and the store's franchise owner. */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { download, useApi, type Insights } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { trackEvent } from '../lib/track';
 import { fmtAgo, storePlace } from '../lib/format';
 import { RangeBar, useRange } from '../components/RangeBar';
 import { ErrorNote, Loading, PageHeader } from '../components/ui';
@@ -17,6 +18,9 @@ export default function StoreDetail() {
   const { range, hours, qs, setRange, setHours } = useRange('today');
   const { data, error } = useApi<Insights>(`/foxtail/stores/${storeId}/insights?${qs}`, range === 'today' ? 60_000 : 0);
   const [busy, setBusy] = useState<string | null>(null);
+  // The insights API names the store under `site` (older shape `store`).
+  const storeName = data?.store?.name ?? (data as unknown as { site?: { name?: string } } | null)?.site?.name;
+  useEffect(() => { if (storeName) trackEvent('store', storeName, { storeId }); }, [storeName, storeId]);
   const [dlError, setDlError] = useState<string | null>(null);
   const dl = async (path: string, name: string) => {
     setBusy(path); setDlError(null);
@@ -29,8 +33,8 @@ export default function StoreDetail() {
   return (
     <div className="space-y-4">
       <PageHeader
-        crumbs={<><Link to="/stores" className="hover:underline">Stores</Link> / {data?.store?.name ?? '…'}</>}
-        title={data?.store?.name ?? 'Store'}
+        crumbs={<><Link to="/stores" className="hover:underline">Stores</Link> / {storeName ?? '…'}</>}
+        title={storeName ?? 'Store'}
         subtitle={data?.store ? [storePlace(data.store), isCorporate ? (data.store.franchiseeName || 'Corporate-owned') : null].filter(Boolean).join(' · ') : undefined}
         actions={<>
           <button type="button" className="btn-secondary" disabled={!!busy || !data} onClick={() => dl('report.pdf', 'foxtail-report.pdf')}>{busy === 'report.pdf' ? 'Preparing…' : 'PDF report'}</button>

@@ -3,6 +3,7 @@ import { Link, NavLink, useLocation } from 'react-router-dom';
 import { ROLE_LABELS } from '@foxtail/shared';
 import { useAuth } from '../lib/auth';
 import AskEye from './AskEye';
+import MirrorBanner from './MirrorBanner';
 
 function Logo() {
   return (
@@ -75,10 +76,11 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col">
+      <MirrorBanner />
       {/* Demo banner */}
       {isDemo && (
         <div className="bg-accent text-white text-center py-2.5 px-4 text-sm font-semibold flex items-center justify-center gap-4 safe-top">
-          <span>DEMO — viewing as {user ? ROLE_LABELS[user.role] : 'demo user'}</span>
+          <span>DEMO — viewing as {user ? ROLE_LABELS[user.role] : 'demo user'}<span className="block sm:inline sm:ml-2 text-[11px] font-normal opacity-80" data-testid="usage-notice">Usage is recorded to improve the service.</span></span>
           <button type="button" onClick={signOut} className="px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-xs font-semibold min-h-[32px]">
             Exit demo
           </button>
