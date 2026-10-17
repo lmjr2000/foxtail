@@ -30,14 +30,23 @@ function Inline({ text }: { text: string }) {
 }
 
 function Rich({ text }: { text: string }) {
-  const blocks = text.replace(/\r/g, '').split(/\n\s*\n/).map(b => b.split('\n').map(l => l.trim()).filter(Boolean)).filter(b => b.length);
-  const out: ReactNode[] = [];
-  blocks.forEach((lines, bi) => {
-    const isNum = lines.every(l => /^\d+[.)]\s/.test(l));
-    const isBul = lines.every(l => /^[-•]\s/.test(l));
-    if (isNum) {
-      out.push(
-        <ol key={bi} className="space-y-2">
+  // Line-based, so it copes with a missing blank line or a "- Note:" bullet.
+  type Seg = { kind: 'num' | 'bul' | 'note' | 'text'; lines: string[] };
+  const segs: Seg[] = [];
+  let gap = true;
+  for (const raw of text.replace(/\r/g, '').split('\n')) {
+    const l = raw.trim();
+    if (!l) { gap = true; continue; }
+    const kind: Seg['kind'] = /^(?:[-•]\s*)?\**note:?\**:?\s/i.test(l) ? 'note' : /^\d+[.)]\s/.test(l) ? 'num' : /^[-•]\s/.test(l) ? 'bul' : 'text';
+    const last = segs[segs.length - 1];
+    if (last && last.kind === kind && (kind !== 'text' || !gap)) last.lines.push(l); else segs.push({ kind, lines: [l] });
+    gap = false;
+  }
+  const out: ReactNode[] = segs.map((seg, si) => {
+    const { kind, lines } = seg;
+    if (kind === 'num') {
+      return (
+        <ol key={si} className="space-y-2">
           {lines.map((l, i) => {
             const m = /^(\d+)[.)]\s+(.*)$/.exec(l)!;
             const body = m[2];
@@ -54,23 +63,23 @@ function Rich({ text }: { text: string }) {
               </li>
             );
           })}
-        </ol>,
+        </ol>
       );
-    } else if (isBul) {
-      out.push(
-        <ul key={bi} className="space-y-1.5">
+    }
+    if (kind === 'bul') {
+      return (
+        <ul key={si} className="space-y-1.5">
           {lines.map((l, i) => (
             <li key={i} className="flex gap-2.5"><span className="mt-[0.55rem] h-1.5 w-1.5 shrink-0 rounded-full bg-accent" /><span><Inline text={l.replace(/^[-•]\s+/, '')} /></span></li>
           ))}
-        </ul>,
+        </ul>
       );
-    } else if (/^note:/i.test(lines[0])) {
-      out.push(<p key={bi} className="border-t border-line pt-2.5 text-[12px] leading-relaxed text-ink-3"><Inline text={lines.join(' ').replace(/^note:\s*/i, '')} /></p>);
-    } else if (bi === 0 && blocks.length > 1) {
-      out.push(<p key={bi} className="text-[14.5px] font-medium leading-snug text-ink"><Inline text={lines.join(' ')} /></p>);
-    } else {
-      out.push(<p key={bi} className="leading-relaxed"><Inline text={lines.join(' ')} /></p>);
     }
+    if (kind === 'note') {
+      return <p key={si} className="border-t border-line pt-2.5 text-[12px] leading-relaxed text-ink-3"><Inline text={lines.map(l => l.replace(/^(?:[-•]\s*)?\**note:?\**:?\s*/i, '')).join(' ')} /></p>;
+    }
+    if (si === 0 && segs.length > 1) return <p key={si} className="text-[14.5px] font-medium leading-snug text-ink"><Inline text={lines.join(' ')} /></p>;
+    return <p key={si} className="leading-relaxed"><Inline text={lines.join(' ')} /></p>;
   });
   return <div className="space-y-3">{out}</div>;
 }
