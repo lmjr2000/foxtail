@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { ROLE_LABELS } from '@foxtail/shared';
 import { useAuth } from '../lib/auth';
+import AskEye from './AskEye';
 
 function Logo() {
   return (
@@ -142,6 +143,8 @@ export default function Layout({ children }: { children: ReactNode }) {
       <footer className="hidden md:block text-center text-xs text-ink-4 py-6">
         Foxtail Coffee Co. · store performance · counts only, no recordings kept
       </footer>
+
+      <AskEye />
 
       {/* Mobile bottom tab bar */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-surface border-t border-line safe-bottom z-40" aria-label="Main">
