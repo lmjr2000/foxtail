@@ -25,7 +25,7 @@ export default function ProspectLink() {
       .catch(err => setState(err instanceof ApiError && (err.status === 410 || err.status === 404) ? 'expired' : err instanceof ApiError && err.status === 429 ? 'busy' : 'error'));
   }, [inviteLogin, signOut, navigate, pathname]);
 
-  if (state === 'working') return <div className="min-h-screen flex items-center justify-center bg-black"><Loading label="Opening…" /></div>;
+  if (state === 'working') return <div className="min-h-screen flex items-center justify-center bg-black"><div className="text-center"><Loading label="Opening…" /><p className="mt-3 text-[11px] text-neutral-500">Usage is recorded to improve the service.</p></div></div>;
   const title = state === 'expired' ? 'This link has expired' : state === 'busy' ? 'Please try again in a few minutes' : 'Something went wrong';
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-6 bg-black px-6 text-center" data-testid="prospect-expired">

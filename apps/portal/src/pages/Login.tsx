@@ -118,6 +118,7 @@ export default function Login() {
               <div className="space-y-4">
                 <div className="text-center lg:text-left">
                   <h2 className="text-xl font-bold text-ink">Try the demo</h2>
+                  <p className="text-[11px] text-ink-4" data-testid="usage-notice-demo">Usage is recorded to improve the service.</p>
                   <p className="text-sm text-ink-3 mt-1">Tap a role to explore the dashboard</p>
                 </div>
                 <div className="space-y-3">
@@ -192,6 +193,7 @@ export default function Login() {
                   </>
                 )}
                 <p className="text-xs text-ink-4 text-center">Forgot your password? Ask a Foxtail corporate admin to reset it.</p>
+                <p className="text-[11px] text-ink-4 text-center" data-testid="usage-notice">Usage is recorded to improve the service.</p>
               </form>
             </div>
           </div>

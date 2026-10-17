@@ -7,6 +7,7 @@ import Hls from 'hls.js';
 import { fetchImage, getToken, type Camera, type VideoMode } from '../lib/api';
 import { fmtAgo } from '../lib/format';
 import { Modal, Pill } from './ui';
+import { trackEvent } from '../lib/track';
 
 export function StatusPill({ status, at }: { status: Camera['status']; at?: string | null }) {
   const tone = status === 'online' ? 'ok' : status === 'offline' ? 'bad' : 'neutral';
@@ -107,7 +108,7 @@ export function LivePlayer({ storeId, camera }: { storeId: string; camera: Camer
 /** Camera tile: picture (or a status card when there is no video yet) + name + status. Click to open. */
 export function CameraTile({ storeId, camera, video, onOpen }: { storeId: string; camera: Camera; video: VideoMode; onOpen: () => void }) {
   return (
-    <button type="button" onClick={onOpen} className="card overflow-hidden text-left hover:shadow-card-hover hover:border-accent transition-colors" data-testid="camera-tile">
+    <button type="button" onClick={() => { trackEvent('camera', camera.name, { storeId }); onOpen(); }} className="card overflow-hidden text-left hover:shadow-card-hover hover:border-accent transition-colors" data-testid="camera-tile">
       {video === 'none'
         ? <div className="bg-surface-2 flex flex-col items-center justify-center gap-1 text-center px-3" style={{ aspectRatio: '16 / 9' }}>
             <span className="text-2xl text-ink-4">▣</span>

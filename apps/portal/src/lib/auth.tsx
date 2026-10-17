@@ -1,10 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { canManage, isCorporate, type Role } from '@foxtail/shared';
-import { apiFetch, apiPost, getToken, setToken, setUnauthorizedHandler, type SessionUser } from './api';
+import { apiFetch, apiPost, getToken, sessionStore, setToken, setUnauthorizedHandler, type SessionUser } from './api';
 
 const DEMO_KEY = 'foxtail_demo';
-function getDemoFlag(): boolean { try { return localStorage.getItem(DEMO_KEY) === '1'; } catch { return false; } }
-function setDemoFlag(v: boolean): void { try { if (v) localStorage.setItem(DEMO_KEY, '1'); else localStorage.removeItem(DEMO_KEY); } catch { /* blocked */ } }
+function getDemoFlag(): boolean { try { return sessionStore()?.getItem(DEMO_KEY) === '1'; } catch { return false; } }
+function setDemoFlag(v: boolean): void { try { const s = sessionStore(); if (!s) return; if (v) s.setItem(DEMO_KEY, '1'); else s.removeItem(DEMO_KEY); } catch { /* blocked */ } }
 
 interface AuthState {
   user: SessionUser | null;
@@ -33,8 +33,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUnauthorizedHandler(signOut);
     if (!getToken()) { setReady(true); return; }
     const wasDemo = getDemoFlag();
-    apiFetch<SessionUser>('/auth/me')
-      .then(r => { setUser(r); setIsDemo(wasDemo); })
+    apiFetch<SessionUser | { user: SessionUser }>('/auth/me')
+      // Omni answers { user: {...} }; keeping the wrapper left name/role blank after a page reload.
+      .then(r => { setUser('user' in r && r.user ? r.user : (r as SessionUser)); setIsDemo(wasDemo); })
       .catch(() => { setToken(null); setDemoFlag(false); })
       .finally(() => setReady(true));
   }, [signOut]);

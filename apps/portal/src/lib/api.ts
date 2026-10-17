@@ -6,16 +6,27 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { OperatingHours, Role } from '@foxtail/shared';
+import { trackEvent } from './track';
 
 const TOKEN_KEY = 'foxtail_token';
 
-const API_BASE = import.meta.env.VITE_OMNI_API_BASE_URL?.replace(/\/$/, '') || '/api/v1';
+export const API_BASE = import.meta.env.VITE_OMNI_API_BASE_URL?.replace(/\/$/, '') || '/api/v1';
+
+/**
+ * "See what they see" (Omni staff opening a prospect's view at /mirror): that tab keeps its read-only session in
+ * sessionStorage, so it never replaces a real Foxtail sign-in in other tabs, and usage tracking is off in it.
+ */
+export const MIRROR_KEY = 'foxtail_mirror';
+export function isMirrorSession(): boolean { try { return sessionStorage.getItem(MIRROR_KEY) === '1'; } catch { return false; } }
+export function sessionStore(): Storage | null {
+  try { return isMirrorSession() ? sessionStorage : localStorage; } catch { return null; }
+}
 
 export function getToken(): string | null {
-  try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
+  try { return sessionStore()?.getItem(TOKEN_KEY) ?? null; } catch { return null; }
 }
 export function setToken(t: string | null): void {
-  try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch { /* storage blocked */ }
+  try { const s = sessionStore(); if (!s) return; if (t) s.setItem(TOKEN_KEY, t); else s.removeItem(TOKEN_KEY); } catch { /* storage blocked */ }
 }
 
 export class ApiError extends Error {
@@ -39,6 +50,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     let code = 'ERROR', message = `Request failed (${res.status})`;
     try { const b = await res.json(); code = b.error || code; message = b.message || message; } catch { /* not JSON */ }
     if (res.status === 401 && !path.startsWith('/auth/login')) onUnauthorized?.();
+    if (res.status !== 401 && code !== 'DEMO_READ_ONLY') trackEvent('error', `${res.status} ${message}`, { status: res.status, code: String(code).slice(0, 40) });
     throw new ApiError(res.status, code, message);
   }
   if (res.status === 204) return undefined as T;
@@ -56,8 +68,10 @@ export async function download(path: string, fallbackName: string): Promise<void
   if (!res.ok) {
     let message = `Download failed (${res.status})`;
     try { message = (await res.json()).message || message; } catch { /* binary */ }
+    trackEvent('error', `Download failed: ${message}`, { status: res.status });
     throw new Error(message);
   }
+  trackEvent('export', fallbackName);
   const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '')?.[1] || fallbackName;
   const url = URL.createObjectURL(await res.blob());
   const a = document.createElement('a');
