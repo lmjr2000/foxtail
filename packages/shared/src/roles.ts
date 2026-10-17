@@ -31,3 +31,8 @@ export function isCorporate(role: Role): boolean {
 export function canManage(role: Role): boolean {
   return role === 'corporate_admin';
 }
+
+/** Where "/" (the app home, also used after sign-in and on reload) takes this role. Franchise owners open on their cameras. */
+export function homePathFor(role: string | null | undefined): string {
+  return role === 'franchise_owner' ? '/cameras' : '/';
+}

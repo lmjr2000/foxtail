@@ -44,6 +44,9 @@ export default function Cameras() {
       {!stores.data && !stores.error && <Loading />}
       {stores.data && (all.length === 0 ? (
         <Empty>{canManage && !isDemo ? <>No locations yet. <Link className="text-accent-ink underline" to="/admin?tab=import">Import the EZCloud camera export</Link> to add every store and camera.</> : 'No locations are assigned to your login yet.'}</Empty>
+      ) : all.length === 1 ? (
+        // One location (e.g. a single-store franchise owner): skip the picker and show its cameras straight away.
+        <section className="min-w-0"><StoreCameras store={all[0]} canManage={canManage} /></section>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[20rem_1fr] gap-4 items-start">
           <aside className="card overflow-hidden lg:sticky lg:top-4">
