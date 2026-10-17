@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_HOURS, DEFAULT_KPIS, resolveCountingConfig, validateCountingOverrides, validateHours, validateZones } from './counting.js';
-import { canManage, isCorporate } from './roles.js';
+import { canManage, homePathFor, isCorporate } from './roles.js';
 
 const store = { timezone: 'America/Chicago', openingHours: DEFAULT_HOURS };
 
@@ -56,5 +56,9 @@ describe('roles', () => {
     expect(canManage('franchise_owner')).toBe(false);
     expect(isCorporate('corporate_viewer')).toBe(true);
     expect(isCorporate('franchise_owner')).toBe(false);
+    expect(homePathFor('franchise_owner')).toBe('/cameras');
+    expect(homePathFor('corporate_admin')).toBe('/');
+    expect(homePathFor('corporate_viewer')).toBe('/');
+    expect(homePathFor(undefined)).toBe('/');
   });
 });

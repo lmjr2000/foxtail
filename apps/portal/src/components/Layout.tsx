@@ -51,7 +51,8 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   const desktopItems: Array<{ to: string; label: string; end?: boolean }> = [
     { to: '/security', label: 'Security' },
-    { to: '/', label: isCorporate ? 'Overview' : 'My stores', end: true },
+    // Franchise owners' home ("/") is the Cameras page, so their store summary lives at /overview.
+    { to: isCorporate ? '/' : '/overview', label: isCorporate ? 'Overview' : 'My stores', end: true },
     { to: '/stores', label: 'Stores' },
     { to: '/cameras', label: 'Cameras' },
     { to: '/reports', label: 'Reports' },
@@ -60,7 +61,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   const mobileTabItems = [
     { to: '/security', label: 'Security', key: 'security' },
-    { to: '/', label: 'Overview', key: 'overview', end: true },
+    { to: isCorporate ? '/' : '/overview', label: 'Overview', key: 'overview', end: true },
     { to: '/stores', label: 'Stores', key: 'stores' },
     { to: '/cameras', label: 'Cameras', key: 'cameras' },
   ];

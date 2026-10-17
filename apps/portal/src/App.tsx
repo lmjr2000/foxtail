@@ -16,15 +16,22 @@ import Cameras from './pages/Cameras';
 import ProspectLink from './pages/ProspectLink';
 import Mirror from './pages/Mirror';
 import { startTracking, trackPage } from './lib/track';
-import { isInvitePath } from '@foxtail/shared';
+import { homePathFor, isInvitePath } from '@foxtail/shared';
 
 /** Friendly page names for the activity timeline (the page itself adds store names as separate events). */
 function pageTitle(p: string): string {
-  if (p === '/') return 'Overview';
+  if (p === '/' || p === '/overview') return 'Overview';
   if (/^\/stores\/[^/]+\/settings/.test(p)) return 'Store settings';
   if (/^\/stores\/[^/]+/.test(p)) return 'Store detail';
   const m: Record<string, string> = { '/stores': 'Stores', '/cameras': 'Cameras', '/reports': 'Reports', '/security': 'Security', '/admin': 'Admin', '/account': 'Account' };
   return m[p] ?? p;
+}
+
+/** The app's home ("/"): franchise owners open straight onto their cameras; everyone else gets the Overview. */
+function Home() {
+  const { user } = useAuth();
+  const to = homePathFor(user?.role);
+  return to === '/' ? <Overview /> : <Navigate to={to} replace />;
 }
 
 export default function App() {
@@ -46,7 +53,8 @@ export default function App() {
     <Layout>
       <Routes>
         <Route path="/security" element={<Security />} />
-        <Route path="/" element={<Overview />} />
+        <Route path="/" element={<Home />} />
+        <Route path="/overview" element={<Overview />} />
         <Route path="/stores" element={<Stores />} />
         <Route path="/stores/:storeId" element={<StoreDetail />} />
         {isCorporate && <Route path="/stores/:storeId/settings" element={<StoreSettings />} />}
