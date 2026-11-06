@@ -11,6 +11,7 @@ import Stores from './pages/Stores';
 import StoreDetail from './pages/StoreDetail';
 import StoreSettings from './pages/StoreSettings';
 import Reports from './pages/Reports';
+import Analytics from './pages/Analytics';
 import Admin from './pages/Admin';
 import Cameras from './pages/Cameras';
 import ProspectLink from './pages/ProspectLink';
@@ -23,7 +24,7 @@ function pageTitle(p: string): string {
   if (p === '/' || p === '/overview') return 'Overview';
   if (/^\/stores\/[^/]+\/settings/.test(p)) return 'Store settings';
   if (/^\/stores\/[^/]+/.test(p)) return 'Store detail';
-  const m: Record<string, string> = { '/stores': 'Stores', '/cameras': 'Cameras', '/reports': 'Reports', '/security': 'Security', '/admin': 'Admin', '/account': 'Account' };
+  const m: Record<string, string> = { '/stores': 'Stores', '/cameras': 'Cameras', '/analytics': 'Analytics', '/reports': 'Reports', '/security': 'Security', '/admin': 'Admin', '/account': 'Account' };
   return m[p] ?? p;
 }
 
@@ -59,6 +60,7 @@ export default function App() {
         <Route path="/stores/:storeId" element={<StoreDetail />} />
         {isCorporate && <Route path="/stores/:storeId/settings" element={<StoreSettings />} />}
         <Route path="/cameras" element={<Cameras />} />
+        <Route path="/analytics" element={<Analytics />} />
         <Route path="/reports" element={<Reports />} />
         {canManage && <Route path="/admin" element={<Admin />} />}
         <Route path="/account" element={<Account />} />
